@@ -20,6 +20,9 @@ const bgImage = new Image();
 bgImage.crossOrigin = "Anonymous"; 
 bgImage.src = 'assets/image.jpg';
 
+// Carregar som
+const hitSound = new Audio('assets/sound-ball.wav');
+
 // Variáveis Globais
 let width, height, centerX, centerY;
 let containerRadius;
@@ -28,14 +31,29 @@ let animationId;
 let gridState = []; 
 let gridCooldown = []; 
 
+// --- ESTADOS DO JOGO ---
+const STATE = {
+    MENU: 0,        // Esperando clique
+    COUNTDOWN: 1,   // Contagem 3, 2, 1
+    PLAYING: 2,     // Jogo rolando
+    GAMEOVER: 3     // Fim
+};
+let currentState = STATE.MENU;
+let countdownValue = 3;
+
+// --- VARIÁVEIS DO JOGO ---
+let startTime;
+let playerName = "CRISTIANO RONALDO"; 
+const GAME_DURATION = 60000; 
+
 // Configuração Visual e Física
 const CONFIG = {
-    enableBlurLayer: true,
-    gridSize: 20,      
+    enableBlurLayer: true, 
+    gridSize: 10,      
     gridGap: 1,        
-    ballRadius: 10,
-    ballSpeed: 10,     
-    ballColor: '#ffffff',
+    ballRadius: 5,
+    ballSpeed: 3,     
+    ballColor: '#fbff00ff',
     layerCooldown: 400,
     blurAmount: '15px'
 };
@@ -44,16 +62,22 @@ const ball = {
     x: 0, y: 0, vx: 0, vy: 0, radius: CONFIG.ballRadius,
     
     init() {
+        // Posiciona a bola mas não define movimento ainda
         const randomRadius = Math.random() * (containerRadius - this.radius - 20);
         const randomAngle = Math.random() * Math.PI * 2;
         this.x = centerX + Math.cos(randomAngle) * randomRadius;
         this.y = centerY + Math.sin(randomAngle) * randomRadius;
+        
+        // Define vetores de velocidade para usar quando o jogo começar
         const angle = Math.random() * Math.PI * 2;
         this.vx = Math.cos(angle) * CONFIG.ballSpeed;
         this.vy = Math.sin(angle) * CONFIG.ballSpeed;
     },
 
     update() {
+        // Só move se estiver JOGANDO
+        if (currentState !== STATE.PLAYING) return;
+
         this.x += this.vx;
         this.y += this.vy;
         
@@ -63,6 +87,10 @@ const ball = {
         const maxDist = containerRadius - this.radius;
 
         if (dist > maxDist) {
+            // Tocar som (Agora garantido pois houve interação do usuário antes)
+            hitSound.currentTime = 0;
+            hitSound.play().catch(e => console.log("Audio blocked:", e));
+
             const nx = dx / dist;
             const ny = dy / dist;
             this.x = centerX + nx * maxDist;
@@ -79,6 +107,9 @@ const ball = {
     },
 
     draw(context) {
+        // Bola visível apenas durante o jogo
+        if (currentState !== STATE.PLAYING) return;
+
         context.beginPath();
         context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         context.fillStyle = CONFIG.ballColor;
@@ -106,6 +137,8 @@ function initGrid() {
 }
 
 function updateGridState() {
+    if (currentState !== STATE.PLAYING) return;
+
     const points = [
         {x: ball.x, y: ball.y},
         {x: ball.x + ball.radius/2, y: ball.y}, {x: ball.x - ball.radius/2, y: ball.y}
@@ -118,13 +151,12 @@ function updateGridState() {
 
         if (!gridState[col] || gridState[col][row] === undefined) return;
 
-        const currentState = gridState[col][row];
+        const currentStateVal = gridState[col][row];
         const rectX = col * CONFIG.gridSize;
         const rectY = row * CONFIG.gridSize;
         const size = CONFIG.gridSize - CONFIG.gridGap;
 
-        // ESTADO 0 -> 1: Preto -> Blur (ou Original se flag for false)
-        if (currentState === 0) {
+        if (currentStateVal === 0) {
             gridState[col][row] = 1;
             gridCooldown[col][row] = now;
             
@@ -132,9 +164,7 @@ function updateGridState() {
             maskBlackCtx.fillRect(rectX, rectY, size, size);
             maskBlackCtx.globalCompositeOperation = 'source-over';
         }
-        // ESTADO 1 -> 2: Blur -> Original
-        // Só executa se a camada de blur estiver ativada
-        else if (currentState === 1 && CONFIG.enableBlurLayer) {
+        else if (currentStateVal === 1 && CONFIG.enableBlurLayer) {
             if (now - gridCooldown[col][row] > CONFIG.layerCooldown) {
                 gridState[col][row] = 2;
                 
@@ -155,6 +185,162 @@ function preRenderBlur() {
     blurredCtx.filter = 'none';
 }
 
+function drawScoreboard(elapsedTime) {
+    const displayTime = Math.min(elapsedTime, GAME_DURATION); 
+    const minutes = Math.floor(displayTime / 60000);
+    const seconds = Math.floor((displayTime % 60000) / 1000);
+    const text = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+    const boxWidth = 200;
+    const boxHeight = 70;
+    const boxX = centerX - boxWidth / 2;
+    const boxY = centerY - containerRadius - boxHeight - 30; 
+
+    ctx.save();
+    
+    const grad = ctx.createLinearGradient(boxX, boxY, boxX, boxY + boxHeight);
+    grad.addColorStop(0, '#333');
+    grad.addColorStop(1, '#111');
+    ctx.fillStyle = grad;
+    
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 4;
+    
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = "bold 40px 'Orbitron', monospace";
+    ctx.fillStyle = '#ff3300';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#ff3300';
+    ctx.shadowBlur = 15;
+    ctx.fillText(text, centerX, boxY + boxHeight / 2 + 3);
+
+    ctx.restore();
+}
+
+function getLines(ctx, text, maxWidth) {
+    const words = text.split(" ");
+    const lines = [];
+    let currentLine = words[0];
+
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const width = ctx.measureText(currentLine + " " + word).width;
+        if (width < maxWidth) {
+            currentLine += " " + word;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
+    }
+    lines.push(currentLine);
+    return lines;
+}
+
+function drawBottomText() {
+    const startY = centerY + containerRadius + 50; 
+    const maxWidth = width * 0.9; 
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    
+    if (currentState !== STATE.GAMEOVER) {
+        // --- TEXTO DURANTE O JOGO ---
+        const fontSize = 20;
+        const lineHeight = fontSize * 1.4;
+        ctx.font = `${fontSize}px 'Orbitron', sans-serif`; 
+        ctx.fillStyle = "#aaa";
+
+        const text = "Em quanto tempo você consegue adivinhar esse famoso?";
+        const lines = getLines(ctx, text, maxWidth);
+
+        lines.forEach((line, i) => {
+            ctx.fillText(line, centerX, startY + (i * lineHeight));
+        });
+    } 
+    else {
+        // --- RESULTADO (GAME OVER) ---
+        const fontSize = 40;
+        ctx.font = `bold ${fontSize}px 'Orbitron', sans-serif`;
+        ctx.fillStyle = "#fff";
+        ctx.shadowColor = 'white';
+        ctx.shadowBlur = 10;
+
+        const lines = getLines(ctx, playerName, maxWidth);
+        const lineHeight = fontSize * 1.2;
+
+        lines.forEach((line, i) => {
+            ctx.fillText(line, centerX, startY + (i * lineHeight));
+        });
+
+        const lastLineY = startY + (lines.length * lineHeight);
+        
+        ctx.font = "24px sans-serif";
+        ctx.fillStyle = "#4caf50"; 
+        ctx.shadowBlur = 0;
+        ctx.fillText("Você acertou?", centerX, lastLineY + 10);
+    }
+    
+    ctx.restore();
+}
+
+// --- FUNÇÃO PARA INICIAR CONTAGEM ---
+function startCountdown() {
+    if (currentState !== STATE.MENU) return;
+    
+    // Desbloquear Audio (truque do play/pause)
+    hitSound.play().then(() => hitSound.pause()).catch(() => {});
+
+    currentState = STATE.COUNTDOWN;
+    countdownValue = 3;
+
+    const timer = setInterval(() => {
+        countdownValue--;
+        if (countdownValue <= 0) {
+            clearInterval(timer);
+            currentState = STATE.PLAYING;
+            startTime = Date.now();
+        }
+    }, 1000);
+}
+
+function drawOverlay() {
+    // Desenha sobreposições (Start, Countdown)
+    
+    if (currentState === STATE.MENU) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, containerRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = "bold 30px 'Orbitron', sans-serif";
+        ctx.fillStyle = "#fff";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("TOQUE PARA INICIAR", centerX, centerY);
+        ctx.restore();
+    }
+    else if (currentState === STATE.COUNTDOWN) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, containerRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = "bold 100px 'Orbitron', sans-serif";
+        ctx.fillStyle = "#fff";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(countdownValue, centerX, centerY);
+        ctx.restore();
+    }
+}
+
 function resize() {
     width = window.innerWidth;
     height = window.innerHeight;
@@ -166,7 +352,7 @@ function resize() {
 
     centerX = width / 2;
     centerY = height / 2;
-    containerRadius = Math.min(width, height) * 0.45;
+    containerRadius = Math.min(width, height) * 0.35; 
 
     initGrid();
 
@@ -180,13 +366,25 @@ function resize() {
         ctx.fillRect(0, 0, width, height);
         ctx.restore();
     });
-
-    if (animationId) ball.init(); 
+    
+    // Reseta estado para MENU ao redimensionar (opcional)
+    currentState = STATE.MENU;
+    ball.init(); 
 }
 
 function render() {
     ball.update();
     updateGridState();
+
+    let elapsed = 0;
+    if (currentState === STATE.PLAYING) {
+        elapsed = Date.now() - startTime;
+        if (elapsed >= GAME_DURATION) {
+            currentState = STATE.GAMEOVER;
+        }
+    } else if (currentState === STATE.GAMEOVER) {
+        elapsed = GAME_DURATION; // Trava o relógio no final
+    }
 
     ctx.clearRect(0, 0, width, height);
 
@@ -201,32 +399,30 @@ function render() {
 
     if (bgImage.complete && bgImage.naturalWidth > 0) {
         
-        // --- 1. CAMADA BASE (Original) ---
         ctx.drawImage(bgImage, drawX, drawY, diameter, diameter);
 
-        // --- 2. CAMADA MEIO (Blur) ---
-        // Só desenha se a flag estiver ATIVADA
-        if (CONFIG.enableBlurLayer) {
+        if (currentState !== STATE.GAMEOVER) {
+            if (CONFIG.enableBlurLayer) {
+                tempLayerCtx.clearRect(0, 0, width, height);
+                tempLayerCtx.drawImage(blurredImageCanvas, 0, 0, blurredImageCanvas.width, blurredImageCanvas.height, drawX, drawY, diameter, diameter);
+                
+                tempLayerCtx.globalCompositeOperation = 'destination-in';
+                tempLayerCtx.drawImage(maskBlurCanvas, 0, 0);
+                tempLayerCtx.globalCompositeOperation = 'source-over';
+
+                ctx.drawImage(tempLayerCanvas, 0, 0);
+            }
+
             tempLayerCtx.clearRect(0, 0, width, height);
-            tempLayerCtx.drawImage(blurredImageCanvas, 0, 0, blurredImageCanvas.width, blurredImageCanvas.height, drawX, drawY, diameter, diameter);
-            
+            tempLayerCtx.fillStyle = '#000';
+            tempLayerCtx.fillRect(0, 0, width, height);
+
             tempLayerCtx.globalCompositeOperation = 'destination-in';
-            tempLayerCtx.drawImage(maskBlurCanvas, 0, 0);
+            tempLayerCtx.drawImage(maskBlackCanvas, 0, 0);
             tempLayerCtx.globalCompositeOperation = 'source-over';
 
             ctx.drawImage(tempLayerCanvas, 0, 0);
         }
-
-        // --- 3. CAMADA TOPO (Preto) ---
-        tempLayerCtx.clearRect(0, 0, width, height);
-        tempLayerCtx.fillStyle = '#000';
-        tempLayerCtx.fillRect(0, 0, width, height);
-
-        tempLayerCtx.globalCompositeOperation = 'destination-in';
-        tempLayerCtx.drawImage(maskBlackCanvas, 0, 0);
-        tempLayerCtx.globalCompositeOperation = 'source-over';
-
-        ctx.drawImage(tempLayerCanvas, 0, 0);
     }
 
     ctx.restore(); 
@@ -238,11 +434,19 @@ function render() {
     ctx.stroke();
 
     ball.draw(ctx);
+    drawOverlay(); // Desenha "Toque para Iniciar" ou Countdown
+    drawScoreboard(elapsed);
+    drawBottomText();
 
     animationId = requestAnimationFrame(render);
 }
 
+// --- EVENTOS ---
 window.addEventListener('resize', resize);
+// Clique/Toque para iniciar
+window.addEventListener('click', startCountdown);
+window.addEventListener('touchstart', startCountdown);
+
 bgImage.onload = () => {
     preRenderBlur();
     resize();
