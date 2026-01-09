@@ -3,19 +3,15 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
 // --- MÁSCARAS E CAMADAS AUXILIARES ---
-// Canvas temporário para montar as camadas isoladamente antes de desenhar na tela
 const tempLayerCanvas = document.createElement('canvas');
 const tempLayerCtx = tempLayerCanvas.getContext('2d');
 
-// Máscara para o PRETO (Camada Topo)
 const maskBlackCanvas = document.createElement('canvas');
 const maskBlackCtx = maskBlackCanvas.getContext('2d');
 
-// Máscara para o BLUR (Camada Meio)
 const maskBlurCanvas = document.createElement('canvas');
 const maskBlurCtx = maskBlurCanvas.getContext('2d');
 
-// Cache da Imagem Borrada
 const blurredImageCanvas = document.createElement('canvas');
 const blurredCtx = blurredImageCanvas.getContext('2d');
 
@@ -29,19 +25,18 @@ let width, height, centerX, centerY;
 let containerRadius;
 let animationId;
 
-// Matrizes de Estado
-// 0 = Preto, 1 = Blur, 2 = Original
 let gridState = []; 
 let gridCooldown = []; 
 
-// Configuração
+// Configuração Visual e Física
 const CONFIG = {
+    enableBlurLayer: true,
     gridSize: 20,      
     gridGap: 1,        
     ballRadius: 10,
     ballSpeed: 10,     
     ballColor: '#ffffff',
-    layerCooldown: 400, // Tempo de espera para cavar a próxima camada
+    layerCooldown: 400,
     blurAmount: '15px'
 };
 
@@ -128,22 +123,21 @@ function updateGridState() {
         const rectY = row * CONFIG.gridSize;
         const size = CONFIG.gridSize - CONFIG.gridGap;
 
-        // ESTADO 0 -> 1: Preto -> Blur
+        // ESTADO 0 -> 1: Preto -> Blur (ou Original se flag for false)
         if (currentState === 0) {
             gridState[col][row] = 1;
             gridCooldown[col][row] = now;
             
-            // Fura a máscara PRETA (destination-out apaga pixels)
             maskBlackCtx.globalCompositeOperation = 'destination-out';
             maskBlackCtx.fillRect(rectX, rectY, size, size);
             maskBlackCtx.globalCompositeOperation = 'source-over';
         }
         // ESTADO 1 -> 2: Blur -> Original
-        else if (currentState === 1) {
+        // Só executa se a camada de blur estiver ativada
+        else if (currentState === 1 && CONFIG.enableBlurLayer) {
             if (now - gridCooldown[col][row] > CONFIG.layerCooldown) {
                 gridState[col][row] = 2;
                 
-                // Fura a máscara BLUR
                 maskBlurCtx.globalCompositeOperation = 'destination-out';
                 maskBlurCtx.fillRect(rectX, rectY, size, size);
                 maskBlurCtx.globalCompositeOperation = 'source-over';
@@ -153,12 +147,10 @@ function updateGridState() {
 }
 
 function preRenderBlur() {
+    if (!bgImage.complete || bgImage.naturalWidth === 0) return;
     blurredImageCanvas.width = bgImage.width;
     blurredImageCanvas.height = bgImage.height;
-    
-    // Desenha imagem com filtro de blur
     blurredCtx.filter = `blur(${CONFIG.blurAmount})`;
-    // Margem extra para evitar bordas brancas
     blurredCtx.drawImage(bgImage, -20, -20, bgImage.width + 40, bgImage.height + 40);
     blurredCtx.filter = 'none';
 }
@@ -167,7 +159,6 @@ function resize() {
     width = window.innerWidth;
     height = window.innerHeight;
     
-    // Redimensionar todos os canvas
     canvas.width = width; canvas.height = height;
     tempLayerCanvas.width = width; tempLayerCanvas.height = height;
     maskBlackCanvas.width = width; maskBlackCanvas.height = height;
@@ -179,10 +170,9 @@ function resize() {
 
     initGrid();
 
-    // Resetar Máscaras (Começam pretas/opacas cobrindo tudo)
     [maskBlackCtx, maskBlurCtx].forEach(ctx => {
         ctx.clearRect(0, 0, width, height);
-        ctx.fillStyle = '#000'; // Cor opaca
+        ctx.fillStyle = '#000';
         ctx.save();
         ctx.beginPath();
         ctx.arc(centerX, centerY, containerRadius, 0, Math.PI * 2);
@@ -198,10 +188,8 @@ function render() {
     ball.update();
     updateGridState();
 
-    // Limpar Canvas Principal
     ctx.clearRect(0, 0, width, height);
 
-    // Definir área de recorte circular principal
     ctx.save();
     ctx.beginPath();
     ctx.arc(centerX, centerY, containerRadius, 0, Math.PI * 2);
@@ -213,46 +201,36 @@ function render() {
 
     if (bgImage.complete && bgImage.naturalWidth > 0) {
         
-        // --- 1. CAMADA BASE: IMAGEM ORIGINAL (Sempre desenhada no fundo) ---
+        // --- 1. CAMADA BASE (Original) ---
         ctx.drawImage(bgImage, drawX, drawY, diameter, diameter);
 
+        // --- 2. CAMADA MEIO (Blur) ---
+        // Só desenha se a flag estiver ATIVADA
+        if (CONFIG.enableBlurLayer) {
+            tempLayerCtx.clearRect(0, 0, width, height);
+            tempLayerCtx.drawImage(blurredImageCanvas, 0, 0, blurredImageCanvas.width, blurredImageCanvas.height, drawX, drawY, diameter, diameter);
+            
+            tempLayerCtx.globalCompositeOperation = 'destination-in';
+            tempLayerCtx.drawImage(maskBlurCanvas, 0, 0);
+            tempLayerCtx.globalCompositeOperation = 'source-over';
 
-        // --- 2. CAMADA MEIO: IMAGEM COM BLUR ---
-        // Montamos no tempLayerCanvas para aplicar a máscara sem apagar o fundo
+            ctx.drawImage(tempLayerCanvas, 0, 0);
+        }
+
+        // --- 3. CAMADA TOPO (Preto) ---
         tempLayerCtx.clearRect(0, 0, width, height);
-        
-        // A. Desenha imagem borrada
-        tempLayerCtx.drawImage(blurredImageCanvas, 0, 0, blurredImageCanvas.width, blurredImageCanvas.height, drawX, drawY, diameter, diameter);
-        
-        // B. Aplica máscara BLUR (destination-in: mantém imagem onde a máscara existe)
-        tempLayerCtx.globalCompositeOperation = 'destination-in';
-        tempLayerCtx.drawImage(maskBlurCanvas, 0, 0);
-        tempLayerCtx.globalCompositeOperation = 'source-over';
-
-        // C. Desenha resultado no canvas principal
-        ctx.drawImage(tempLayerCanvas, 0, 0);
-
-
-        // --- 3. CAMADA TOPO: PRETO ---
-        // Mesmo processo de composição
-        tempLayerCtx.clearRect(0, 0, width, height);
-
-        // A. Desenha retângulo preto
         tempLayerCtx.fillStyle = '#000';
         tempLayerCtx.fillRect(0, 0, width, height);
 
-        // B. Aplica máscara PRETA (destination-in: mantém preto onde máscara existe)
         tempLayerCtx.globalCompositeOperation = 'destination-in';
         tempLayerCtx.drawImage(maskBlackCanvas, 0, 0);
         tempLayerCtx.globalCompositeOperation = 'source-over';
 
-        // C. Desenha resultado no canvas principal
         ctx.drawImage(tempLayerCanvas, 0, 0);
     }
 
-    ctx.restore(); // Fim do Clip
+    ctx.restore(); 
 
-    // Borda
     ctx.beginPath();
     ctx.arc(centerX, centerY, containerRadius, 0, Math.PI * 2);
     ctx.strokeStyle = '#444';
