@@ -7,10 +7,29 @@
 body, html {
     width: 100%;
     height: 100%;
+    background-color: #000; /* Fundo preto para foco */
+    display: flex;
+    justify-content: center;
+    align-items: center;
     overflow: hidden;
-    background-color: #111; /* Fundo escuro */
+}
+
+/* Área de Gravação */
+#tiktok-frame {
+    /* Altura baseada na tela, mantendo proporção 9:16 */
+    height: 95vh; 
+    aspect-ratio: 9 / 16;
+    
+    /* Borda Guia para Gravação (Verde Neon) */
+    border: 2px dashed #00ff00;
+    
+    background-color: #111;
+    position: relative;
+    box-shadow: 0 0 50px rgba(0,0,0,0.5);
 }
 
 canvas {
     display: block;
+    width: 100%;
+    height: 100%;
 }

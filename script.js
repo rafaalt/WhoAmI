@@ -1,6 +1,7 @@
 // Configuração inicial do Canvas e Contexto
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+const frame = document.getElementById('tiktok-frame'); // Referência ao container
 
 // --- MÁSCARAS E CAMADAS AUXILIARES ---
 const tempLayerCanvas = document.createElement('canvas');
@@ -20,6 +21,10 @@ const bgImage = new Image();
 bgImage.crossOrigin = "Anonymous"; 
 bgImage.src = 'assets/image.jpg';
 
+// Carregar logo
+const logoImage = new Image();
+logoImage.src = 'assets/logo.png';
+
 // Carregar som
 const hitSound = new Audio('assets/sound-ball.wav');
 
@@ -33,10 +38,10 @@ let gridCooldown = [];
 
 // --- ESTADOS DO JOGO ---
 const STATE = {
-    MENU: 0,        // Esperando clique
-    COUNTDOWN: 1,   // Contagem 3, 2, 1
-    PLAYING: 2,     // Jogo rolando
-    GAMEOVER: 3     // Fim
+    MENU: 0,        
+    COUNTDOWN: 1,   
+    PLAYING: 2,     
+    GAMEOVER: 3     
 };
 let currentState = STATE.MENU;
 let countdownValue = 3;
@@ -53,7 +58,7 @@ const CONFIG = {
     gridGap: 1,        
     ballRadius: 5,
     ballSpeed: 3,     
-    ballColor: '#fbff00ff',
+    ballColor: '#ffffff',
     layerCooldown: 400,
     blurAmount: '15px'
 };
@@ -62,20 +67,17 @@ const ball = {
     x: 0, y: 0, vx: 0, vy: 0, radius: CONFIG.ballRadius,
     
     init() {
-        // Posiciona a bola mas não define movimento ainda
         const randomRadius = Math.random() * (containerRadius - this.radius - 20);
         const randomAngle = Math.random() * Math.PI * 2;
         this.x = centerX + Math.cos(randomAngle) * randomRadius;
         this.y = centerY + Math.sin(randomAngle) * randomRadius;
         
-        // Define vetores de velocidade para usar quando o jogo começar
         const angle = Math.random() * Math.PI * 2;
         this.vx = Math.cos(angle) * CONFIG.ballSpeed;
         this.vy = Math.sin(angle) * CONFIG.ballSpeed;
     },
 
     update() {
-        // Só move se estiver JOGANDO
         if (currentState !== STATE.PLAYING) return;
 
         this.x += this.vx;
@@ -87,7 +89,6 @@ const ball = {
         const maxDist = containerRadius - this.radius;
 
         if (dist > maxDist) {
-            // Tocar som (Agora garantido pois houve interação do usuário antes)
             hitSound.currentTime = 0;
             hitSound.play().catch(e => console.log("Audio blocked:", e));
 
@@ -107,7 +108,6 @@ const ball = {
     },
 
     draw(context) {
-        // Bola visível apenas durante o jogo
         if (currentState !== STATE.PLAYING) return;
 
         context.beginPath();
@@ -196,6 +196,19 @@ function drawScoreboard(elapsedTime) {
     const boxX = centerX - boxWidth / 2;
     const boxY = centerY - containerRadius - boxHeight - 30; 
 
+    // --- DESENHAR LOGO ACIMA DO PLACAR ---
+    if (logoImage.complete && logoImage.naturalWidth > 0) {
+        const logoWidth = 200; // Largura pequena
+        const scale = logoWidth / logoImage.naturalWidth;
+        const logoHeight = logoImage.naturalHeight * scale;
+        
+        // Posiciona 10px acima do placar
+        const logoX = centerX - logoWidth / 2;
+        const logoY = boxY - logoHeight;
+        
+        ctx.drawImage(logoImage, logoX, logoY, logoWidth, logoHeight);
+    }
+
     ctx.save();
     
     const grad = ctx.createLinearGradient(boxX, boxY, boxX, boxY + boxHeight);
@@ -249,7 +262,6 @@ function drawBottomText() {
     ctx.textAlign = 'center';
     
     if (currentState !== STATE.GAMEOVER) {
-        // --- TEXTO DURANTE O JOGO ---
         const fontSize = 20;
         const lineHeight = fontSize * 1.4;
         ctx.font = `${fontSize}px 'Orbitron', sans-serif`; 
@@ -263,7 +275,6 @@ function drawBottomText() {
         });
     } 
     else {
-        // --- RESULTADO (GAME OVER) ---
         const fontSize = 40;
         ctx.font = `bold ${fontSize}px 'Orbitron', sans-serif`;
         ctx.fillStyle = "#fff";
@@ -288,11 +299,9 @@ function drawBottomText() {
     ctx.restore();
 }
 
-// --- FUNÇÃO PARA INICIAR CONTAGEM ---
 function startCountdown() {
     if (currentState !== STATE.MENU) return;
     
-    // Desbloquear Audio (truque do play/pause)
     hitSound.play().then(() => hitSound.pause()).catch(() => {});
 
     currentState = STATE.COUNTDOWN;
@@ -309,8 +318,6 @@ function startCountdown() {
 }
 
 function drawOverlay() {
-    // Desenha sobreposições (Start, Countdown)
-    
     if (currentState === STATE.MENU) {
         ctx.save();
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -322,7 +329,11 @@ function drawOverlay() {
         ctx.fillStyle = "#fff";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("TOQUE PARA INICIAR", centerX, centerY);
+        
+        // --- TEXTO QUEBRADO (TOQUE / PARA INICIAR) ---
+        ctx.fillText("TOQUE", centerX, centerY - 25);
+        ctx.fillText("PARA INICIAR", centerX, centerY + 25);
+        
         ctx.restore();
     }
     else if (currentState === STATE.COUNTDOWN) {
@@ -341,11 +352,16 @@ function drawOverlay() {
     }
 }
 
+// --- AJUSTE CRÍTICO: RESIZE AGORA PEGA O TAMANHO DO CONTAINER, NÃO DA JANELA ---
 function resize() {
-    width = window.innerWidth;
-    height = window.innerHeight;
+    // Usamos clientWidth/clientHeight do frame
+    width = frame.clientWidth;
+    height = frame.clientHeight;
     
-    canvas.width = width; canvas.height = height;
+    // Atualiza tamanho interno do canvas
+    canvas.width = width; 
+    canvas.height = height;
+    
     tempLayerCanvas.width = width; tempLayerCanvas.height = height;
     maskBlackCanvas.width = width; maskBlackCanvas.height = height;
     maskBlurCanvas.width = width; maskBlurCanvas.height = height;
@@ -367,7 +383,6 @@ function resize() {
         ctx.restore();
     });
     
-    // Reseta estado para MENU ao redimensionar (opcional)
     currentState = STATE.MENU;
     ball.init(); 
 }
@@ -383,7 +398,7 @@ function render() {
             currentState = STATE.GAMEOVER;
         }
     } else if (currentState === STATE.GAMEOVER) {
-        elapsed = GAME_DURATION; // Trava o relógio no final
+        elapsed = GAME_DURATION; 
     }
 
     ctx.clearRect(0, 0, width, height);
@@ -434,16 +449,14 @@ function render() {
     ctx.stroke();
 
     ball.draw(ctx);
-    drawOverlay(); // Desenha "Toque para Iniciar" ou Countdown
+    drawOverlay(); 
     drawScoreboard(elapsed);
     drawBottomText();
 
     animationId = requestAnimationFrame(render);
 }
 
-// --- EVENTOS ---
 window.addEventListener('resize', resize);
-// Clique/Toque para iniciar
 window.addEventListener('click', startCountdown);
 window.addEventListener('touchstart', startCountdown);
 
