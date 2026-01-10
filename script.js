@@ -28,6 +28,10 @@ logoImage.src = GAME_CONFIG.images.logo;
 // Carregar som
 const hitSound = new Audio(GAME_CONFIG.sound.hit);
 
+// Nova imagem para a bomba
+const bombImage = new Image(); 
+bombImage.src = POWERUP_CONFIG.bomb.image;
+
 // Variáveis Globais
 let width, height, centerX, centerY;
 let containerRadius;
@@ -42,10 +46,30 @@ let countdownValue = 3;
 
 // --- VARIÁVEIS DO JOGO ---
 let startTime; 
+let balls = []; // Array para armazenar todas as bolas
 
-// Configuração Visual e Física
-const ball = {
-    x: 0, y: 0, vx: 0, vy: 0, radius: PHYSICS_CONFIG.ballRadius,
+// --- GERENCIAMENTO DE POWER-UPS ---
+let activePowerUps = []; // Lista de power-ups ativos na tela
+let nextStarSpawnTime = 0; // Timestamp para próxima estrela
+let nextBombSpawnTime = 0; // Timestamp para próxima bomba
+
+// Tipos de PowerUp
+const POWERUP_TYPE = {
+    STAR: 'star',
+    BOMB: 'bomb'
+};
+
+// Classe Ball
+class Ball {
+    constructor(color = PHYSICS_CONFIG.ballColor) {
+        this.radius = PHYSICS_CONFIG.ballRadius;
+        this.color = color;
+        this.x = 0;
+        this.y = 0;
+        this.vx = 0;
+        this.vy = 0;
+        this.init();
+    }
     
     init() {
         const randomRadius = Math.random() * (containerRadius - this.radius - 20);
@@ -56,7 +80,7 @@ const ball = {
         const angle = Math.random() * Math.PI * 2;
         this.vx = Math.cos(angle) * PHYSICS_CONFIG.ballSpeed;
         this.vy = Math.sin(angle) * PHYSICS_CONFIG.ballSpeed;
-    },
+    }
 
     update() {
         if (currentState !== STATE.PLAYING) return;
@@ -70,8 +94,12 @@ const ball = {
         const maxDist = containerRadius - this.radius;
 
         if (dist > maxDist) {
-            hitSound.currentTime = 0;
-            hitSound.play().catch(e => console.log("Audio blocked:", e));
+            // Reproduz som com debounce leve ou clone se necessário, mas simples por enquanto
+            if (hitSound.paused) {
+                 hitSound.play().catch(e => {});
+            } else {
+                 hitSound.currentTime = 0;
+            }
 
             const nx = dx / dist;
             const ny = dy / dist;
@@ -86,21 +114,110 @@ const ball = {
             this.vx = rx * cosC - ry * sinC;
             this.vy = rx * sinC + ry * cosC;
         }
-    },
+    }
 
     draw(context) {
         if (currentState !== STATE.PLAYING) return;
 
         context.beginPath();
         context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        context.fillStyle = PHYSICS_CONFIG.ballColor;
+        context.fillStyle = this.color;
         context.shadowBlur = 10;
         context.shadowColor = 'white';
         context.fill();
         context.shadowBlur = 0; 
         context.closePath();
     }
-};
+}
+
+// Classe PowerUp Base
+class PowerUp {
+    constructor(type) {
+        this.type = type;
+        this.active = true;
+        this.x = 0;
+        this.y = 0;
+        this.id = Math.random().toString(36).substr(2, 9); // ID único para remoção segura
+        
+        if (type === POWERUP_TYPE.STAR) {
+            this.radius = POWERUP_CONFIG.star.radius;
+            this.color = POWERUP_CONFIG.star.color;
+        } else if (type === POWERUP_TYPE.BOMB) {
+            this.radius = POWERUP_CONFIG.bomb.radius;
+            // A cor não é necessária para a imagem, mas pode ser usada como fallback
+            this.color = '#FF4500';
+        }
+
+        this.spawn();
+    }
+
+    spawn() {
+        const randomRadius = Math.random() * (containerRadius - this.radius * 2);
+        const randomAngle = Math.random() * Math.PI * 2;
+        this.x = centerX + Math.cos(randomAngle) * randomRadius;
+        this.y = centerY + Math.sin(randomAngle) * randomRadius;
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        
+        if (this.type === POWERUP_TYPE.STAR) {
+            drawStar(ctx, this.x, this.y, 5, this.radius, this.radius / 2, this.color);
+        } else if (this.type === POWERUP_TYPE.BOMB) {
+            // Desenhar a imagem da bomba
+            if (bombImage.complete && bombImage.naturalWidth > 0) {
+                const drawSize = this.radius * 2;
+                ctx.drawImage(bombImage, this.x - this.radius, this.y - this.radius, drawSize, drawSize);
+            } else {
+                // Fallback
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('!', this.x, this.y);
+                ctx.restore();
+            }
+        }
+    }
+}
+
+function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius, color) {
+    let rot = Math.PI / 2 * 3;
+    let x = cx;
+    let y = cy;
+    let step = Math.PI / spikes;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - outerRadius);
+    for (let i = 0; i < spikes; i++) {
+        x = cx + Math.cos(rot) * outerRadius;
+        y = cy + Math.sin(rot) * outerRadius;
+        ctx.lineTo(x, y);
+        rot += step;
+
+        x = cx + Math.cos(rot) * innerRadius;
+        y = cy + Math.sin(rot) * innerRadius;
+        ctx.lineTo(x, y);
+        rot += step;
+    }
+    ctx.lineTo(cx, cy - outerRadius);
+    ctx.closePath();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#fff'; 
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+}
 
 function initGrid() {
     const cols = Math.ceil(width / PHYSICS_CONFIG.gridSize);
@@ -120,10 +237,14 @@ function initGrid() {
 function updateGridState() {
     if (currentState !== STATE.PLAYING) return;
 
-    const points = [
-        {x: ball.x, y: ball.y},
-        {x: ball.x + ball.radius/2, y: ball.y}, {x: ball.x - ball.radius/2, y: ball.y}
-    ];
+    // Coletar pontos de todas as bolas ativas
+    const points = [];
+    balls.forEach(ball => {
+        points.push({x: ball.x, y: ball.y});
+        points.push({x: ball.x + ball.radius/2, y: ball.y});
+        points.push({x: ball.x - ball.radius/2, y: ball.y});
+    });
+
     const now = Date.now();
 
     points.forEach(p => {
@@ -155,6 +276,54 @@ function updateGridState() {
             }
         }
     });
+}
+
+function explodeBomb(x, y) {
+    const radius = POWERUP_CONFIG.bomb.explosionRadius;
+    const now = Date.now();
+
+    // Atualiza a grade na área da explosão
+    const startCol = Math.floor((x - radius) / PHYSICS_CONFIG.gridSize);
+    const endCol = Math.ceil((x + radius) / PHYSICS_CONFIG.gridSize);
+    const startRow = Math.floor((y - radius) / PHYSICS_CONFIG.gridSize);
+    const endRow = Math.ceil((y + radius) / PHYSICS_CONFIG.gridSize);
+
+    for (let c = startCol; c < endCol; c++) {
+        for (let r = startRow; r < endRow; r++) {
+            if (gridState[c] && gridState[c][r] !== undefined) {
+                // Verificar se está dentro do raio circular
+                const rectX = c * PHYSICS_CONFIG.gridSize;
+                const rectY = r * PHYSICS_CONFIG.gridSize;
+                const dist = Math.sqrt(Math.pow(rectX - x, 2) + Math.pow(rectY - y, 2));
+                const size = PHYSICS_CONFIG.gridSize;
+
+                if (dist < radius) {
+                    const currentStateVal = gridState[c][r];
+                    
+                    if (currentStateVal === 0) {
+                        // Preto -> Blur
+                        gridState[c][r] = 1;
+                        // Atualiza cooldown para evitar que a bolinha revele instantaneamente o próximo layer
+                        gridCooldown[c][r] = now; 
+
+                        maskBlackCtx.globalCompositeOperation = 'destination-out';
+                        maskBlackCtx.fillRect(rectX, rectY, size, size);
+                        maskBlackCtx.globalCompositeOperation = 'source-over';
+                    } 
+                    else if (currentStateVal === 1) {
+                        // Blur -> Original
+                        gridState[c][r] = 2;
+                        
+                        if (PHYSICS_CONFIG.enableBlurLayer) {
+                            maskBlurCtx.globalCompositeOperation = 'destination-out';
+                            maskBlurCtx.fillRect(rectX, rectY, size, size);
+                            maskBlurCtx.globalCompositeOperation = 'source-over';
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 function preRenderBlur() {
@@ -294,6 +463,10 @@ function startCountdown() {
             clearInterval(timer);
             currentState = STATE.PLAYING;
             startTime = Date.now();
+            
+            // Definir timers iniciais para spawn
+            nextStarSpawnTime = startTime + POWERUP_CONFIG.star.initialDelay;
+            nextBombSpawnTime = startTime + POWERUP_CONFIG.bomb.initialDelay;
         }
     }, 1000);
 }
@@ -365,21 +538,83 @@ function resize() {
     });
     
     currentState = STATE.MENU;
-    ball.init(); 
+    balls = [new Ball()]; // Reinicia com uma bola
+    activePowerUps = [];  // Limpa power-ups
+    nextStarSpawnTime = 0;
+    nextBombSpawnTime = 0;
+}
+
+// Função auxiliar para tempo aleatório
+function getRandomInterval(min, max) {
+    return Math.random() * (max - min) + min;
+}
+
+function updatePowerUps() {
+    const now = Date.now();
+
+    // 1. Spawner de Estrela
+    if (POWERUP_CONFIG.enableStar && now >= nextStarSpawnTime && nextStarSpawnTime > 0) {
+        activePowerUps.push(new PowerUp(POWERUP_TYPE.STAR));
+        nextStarSpawnTime = now + getRandomInterval(POWERUP_CONFIG.star.minInterval, POWERUP_CONFIG.star.maxInterval);
+    }
+
+    // 2. Spawner de Bomba
+    if (POWERUP_CONFIG.enableBomb && now >= nextBombSpawnTime && nextBombSpawnTime > 0) {
+        activePowerUps.push(new PowerUp(POWERUP_TYPE.BOMB));
+        nextBombSpawnTime = now + getRandomInterval(POWERUP_CONFIG.bomb.minInterval, POWERUP_CONFIG.bomb.maxInterval);
+    }
+
+    // 3. Checar Colisões
+    // Iteramos de trás para frente para remover seguramente
+    for (let i = activePowerUps.length - 1; i >= 0; i--) {
+        const p = activePowerUps[i];
+        if (!p.active) continue;
+
+        let collected = false;
+        
+        for (let b of balls) {
+            const dx = b.x - p.x;
+            const dy = b.y - p.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < b.radius + p.radius) {
+                collected = true;
+                break; 
+            }
+        }
+
+        if (collected) {
+            // Aplicar efeito
+            if (p.type === POWERUP_TYPE.STAR) {
+                const count = POWERUP_CONFIG.star.extraBallsCount;
+                const colors = POWERUP_CONFIG.star.extraBallColors;
+                for (let k = 0; k < count; k++) {
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    balls.push(new Ball(color));
+                }
+            } else if (p.type === POWERUP_TYPE.BOMB) {
+                explodeBomb(p.x, p.y);
+            }
+
+            // Remover do array
+            activePowerUps.splice(i, 1);
+        }
+    }
 }
 
 function render() {
-    ball.update();
-    updateGridState();
-
-    let elapsed = 0;
+    // Lógica de atualização
     if (currentState === STATE.PLAYING) {
-        elapsed = Date.now() - startTime;
+        balls.forEach(b => b.update());
+        
+        let elapsed = Date.now() - startTime;
+        
+        updatePowerUps();
+        updateGridState();
+
         if (elapsed >= GAME_CONFIG.duration) {
             currentState = STATE.GAMEOVER;
         }
-    } else if (currentState === STATE.GAMEOVER) {
-        elapsed = GAME_CONFIG.duration; 
     }
 
     ctx.clearRect(0, 0, width, height);
@@ -429,9 +664,15 @@ function render() {
     ctx.lineWidth = 8;
     ctx.stroke();
 
-    ball.draw(ctx);
+    // Desenhar PowerUps Ativos
+    if (currentState === STATE.PLAYING) {
+        activePowerUps.forEach(p => p.draw(ctx));
+    }
+
+    balls.forEach(b => b.draw(ctx));
+    
     drawOverlay(); 
-    drawScoreboard(elapsed);
+    drawScoreboard(currentState === STATE.PLAYING ? Date.now() - startTime : (currentState === STATE.GAMEOVER ? GAME_CONFIG.duration : 0));
     drawBottomText();
 
     animationId = requestAnimationFrame(render);
@@ -444,13 +685,11 @@ window.addEventListener('touchstart', startCountdown);
 bgImage.onload = () => {
     preRenderBlur();
     resize();
-    ball.init();
     render();
 };
 
 if (bgImage.complete) {
     preRenderBlur();
     resize();
-    ball.init();
     render();
 }
