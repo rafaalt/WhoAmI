@@ -19,14 +19,14 @@ const blurredCtx = blurredImageCanvas.getContext('2d');
 // Carregar imagem
 const bgImage = new Image();
 bgImage.crossOrigin = "Anonymous"; 
-bgImage.src = 'assets/image.jpg';
+bgImage.src = GAME_CONFIG.images.background;
 
 // Carregar logo
 const logoImage = new Image();
-logoImage.src = 'assets/logo.png';
+logoImage.src = GAME_CONFIG.images.logo;
 
 // Carregar som
-const hitSound = new Audio('assets/sound-ball.wav');
+const hitSound = new Audio(GAME_CONFIG.sound.hit);
 
 // Variáveis Globais
 let width, height, centerX, centerY;
@@ -37,34 +37,15 @@ let gridState = [];
 let gridCooldown = []; 
 
 // --- ESTADOS DO JOGO ---
-const STATE = {
-    MENU: 0,        
-    COUNTDOWN: 1,   
-    PLAYING: 2,     
-    GAMEOVER: 3     
-};
 let currentState = STATE.MENU;
 let countdownValue = 3;
 
 // --- VARIÁVEIS DO JOGO ---
-let startTime;
-let playerName = "CRISTIANO RONALDO"; 
-const GAME_DURATION = 60000; 
+let startTime; 
 
 // Configuração Visual e Física
-const CONFIG = {
-    enableBlurLayer: true, 
-    gridSize: 10,      
-    gridGap: 1,        
-    ballRadius: 5,
-    ballSpeed: 3,     
-    ballColor: '#ffffff',
-    layerCooldown: 400,
-    blurAmount: '15px'
-};
-
 const ball = {
-    x: 0, y: 0, vx: 0, vy: 0, radius: CONFIG.ballRadius,
+    x: 0, y: 0, vx: 0, vy: 0, radius: PHYSICS_CONFIG.ballRadius,
     
     init() {
         const randomRadius = Math.random() * (containerRadius - this.radius - 20);
@@ -73,8 +54,8 @@ const ball = {
         this.y = centerY + Math.sin(randomAngle) * randomRadius;
         
         const angle = Math.random() * Math.PI * 2;
-        this.vx = Math.cos(angle) * CONFIG.ballSpeed;
-        this.vy = Math.sin(angle) * CONFIG.ballSpeed;
+        this.vx = Math.cos(angle) * PHYSICS_CONFIG.ballSpeed;
+        this.vy = Math.sin(angle) * PHYSICS_CONFIG.ballSpeed;
     },
 
     update() {
@@ -112,7 +93,7 @@ const ball = {
 
         context.beginPath();
         context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        context.fillStyle = CONFIG.ballColor;
+        context.fillStyle = PHYSICS_CONFIG.ballColor;
         context.shadowBlur = 10;
         context.shadowColor = 'white';
         context.fill();
@@ -122,8 +103,8 @@ const ball = {
 };
 
 function initGrid() {
-    const cols = Math.ceil(width / CONFIG.gridSize);
-    const rows = Math.ceil(height / CONFIG.gridSize);
+    const cols = Math.ceil(width / PHYSICS_CONFIG.gridSize);
+    const rows = Math.ceil(height / PHYSICS_CONFIG.gridSize);
     gridState = [];
     gridCooldown = [];
     for (let c = 0; c < cols; c++) {
@@ -146,15 +127,15 @@ function updateGridState() {
     const now = Date.now();
 
     points.forEach(p => {
-        const col = Math.floor(p.x / CONFIG.gridSize);
-        const row = Math.floor(p.y / CONFIG.gridSize);
+        const col = Math.floor(p.x / PHYSICS_CONFIG.gridSize);
+        const row = Math.floor(p.y / PHYSICS_CONFIG.gridSize);
 
         if (!gridState[col] || gridState[col][row] === undefined) return;
 
         const currentStateVal = gridState[col][row];
-        const rectX = col * CONFIG.gridSize;
-        const rectY = row * CONFIG.gridSize;
-        const size = CONFIG.gridSize - CONFIG.gridGap;
+        const rectX = col * PHYSICS_CONFIG.gridSize;
+        const rectY = row * PHYSICS_CONFIG.gridSize;
+        const size = PHYSICS_CONFIG.gridSize - PHYSICS_CONFIG.gridGap;
 
         if (currentStateVal === 0) {
             gridState[col][row] = 1;
@@ -164,8 +145,8 @@ function updateGridState() {
             maskBlackCtx.fillRect(rectX, rectY, size, size);
             maskBlackCtx.globalCompositeOperation = 'source-over';
         }
-        else if (currentStateVal === 1 && CONFIG.enableBlurLayer) {
-            if (now - gridCooldown[col][row] > CONFIG.layerCooldown) {
+        else if (currentStateVal === 1 && PHYSICS_CONFIG.enableBlurLayer) {
+            if (now - gridCooldown[col][row] > PHYSICS_CONFIG.layerCooldown) {
                 gridState[col][row] = 2;
                 
                 maskBlurCtx.globalCompositeOperation = 'destination-out';
@@ -180,13 +161,13 @@ function preRenderBlur() {
     if (!bgImage.complete || bgImage.naturalWidth === 0) return;
     blurredImageCanvas.width = bgImage.width;
     blurredImageCanvas.height = bgImage.height;
-    blurredCtx.filter = `blur(${CONFIG.blurAmount})`;
+    blurredCtx.filter = `blur(${PHYSICS_CONFIG.blurAmount})`;
     blurredCtx.drawImage(bgImage, -20, -20, bgImage.width + 40, bgImage.height + 40);
     blurredCtx.filter = 'none';
 }
 
 function drawScoreboard(elapsedTime) {
-    const displayTime = Math.min(elapsedTime, GAME_DURATION); 
+    const displayTime = Math.min(elapsedTime, GAME_CONFIG.duration); 
     const minutes = Math.floor(displayTime / 60000);
     const seconds = Math.floor((displayTime % 60000) / 1000);
     const text = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
@@ -281,7 +262,7 @@ function drawBottomText() {
         ctx.shadowColor = 'white';
         ctx.shadowBlur = 10;
 
-        const lines = getLines(ctx, playerName, maxWidth);
+        const lines = getLines(ctx, GAME_CONFIG.playerName, maxWidth);
         const lineHeight = fontSize * 1.2;
 
         lines.forEach((line, i) => {
@@ -394,11 +375,11 @@ function render() {
     let elapsed = 0;
     if (currentState === STATE.PLAYING) {
         elapsed = Date.now() - startTime;
-        if (elapsed >= GAME_DURATION) {
+        if (elapsed >= GAME_CONFIG.duration) {
             currentState = STATE.GAMEOVER;
         }
     } else if (currentState === STATE.GAMEOVER) {
-        elapsed = GAME_DURATION; 
+        elapsed = GAME_CONFIG.duration; 
     }
 
     ctx.clearRect(0, 0, width, height);
@@ -417,7 +398,7 @@ function render() {
         ctx.drawImage(bgImage, drawX, drawY, diameter, diameter);
 
         if (currentState !== STATE.GAMEOVER) {
-            if (CONFIG.enableBlurLayer) {
+            if (PHYSICS_CONFIG.enableBlurLayer) {
                 tempLayerCtx.clearRect(0, 0, width, height);
                 tempLayerCtx.drawImage(blurredImageCanvas, 0, 0, blurredImageCanvas.width, blurredImageCanvas.height, drawX, drawY, diameter, diameter);
                 
