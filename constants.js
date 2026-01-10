@@ -6,7 +6,8 @@ const GAME_CONFIG = {
         logo: 'assets/logo.png'
     },
     sound: {
-        hit: 'assets/sound-ball.wav'
+        hit: 'assets/sound-ball.wav',
+        answerCorrect: 'assets/answer-correct.mp3'
     },
     duration: 60000
 };
@@ -44,14 +45,14 @@ const POWERUP_CONFIG = {
 
     // Configuração da Bomba (Independente)
     bomb: {
-        radius: 15, 
+        radius: 12, 
         image: 'assets/bomb.png',
         explosionRadius: 30,
 
         // Tempos
         initialDelay: 5000, // Começa um pouco depois da estrela
-        minInterval: 12000, // Mínimo 12s
-        maxInterval: 25000  // Máximo 25s
+        minInterval: 10000, // Mínimo 12s
+        maxInterval: 20000  // Máximo 25s
     }
 };
 

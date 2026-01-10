@@ -27,6 +27,7 @@ logoImage.src = GAME_CONFIG.images.logo;
 
 // Carregar som
 const hitSound = new Audio(GAME_CONFIG.sound.hit);
+const answerCorrectSound = new Audio(GAME_CONFIG.sound.answerCorrect); // Novo som
 
 // Nova imagem para a bomba
 const bombImage = new Image(); 
@@ -52,6 +53,9 @@ let balls = []; // Array para armazenar todas as bolas
 let activePowerUps = []; // Lista de power-ups ativos na tela
 let nextStarSpawnTime = 0; // Timestamp para próxima estrela
 let nextBombSpawnTime = 0; // Timestamp para próxima bomba
+
+let hasPlayedGameOverSound = false; // Flag para garantir que o som só toque uma vez no GAMEOVER
+
 
 // Tipos de PowerUp
 const POWERUP_TYPE = {
@@ -542,6 +546,7 @@ function resize() {
     activePowerUps = [];  // Limpa power-ups
     nextStarSpawnTime = 0;
     nextBombSpawnTime = 0;
+    hasPlayedGameOverSound = false; // Resetar flag
 }
 
 // Função auxiliar para tempo aleatório
@@ -613,7 +618,13 @@ function render() {
         updateGridState();
 
         if (elapsed >= GAME_CONFIG.duration) {
-            currentState = STATE.GAMEOVER;
+            if (currentState !== STATE.GAMEOVER) { // Check if just entered GAMEOVER state
+                currentState = STATE.GAMEOVER;
+                if (!hasPlayedGameOverSound) {
+                    answerCorrectSound.play().catch(e => console.log("Audio blocked:", e));
+                    hasPlayedGameOverSound = true;
+                }
+            }
         }
     }
 
