@@ -26,112 +26,311 @@ const logoImage = new Image();
 logoImage.src = GAME_CONFIG.images.logo;
 
 // Carregar som
+
 const hitSound = new Audio(GAME_CONFIG.sound.hit);
+
 const answerCorrectSound = new Audio(GAME_CONFIG.sound.answerCorrect); // Novo som
 
-// Nova imagem para a bomba
+
+
+// Imagens para PowerUps
+
 const bombImage = new Image(); 
+
 bombImage.src = POWERUP_CONFIG.bomb.image;
 
+
+
+const megaBallImage = new Image();
+
+megaBallImage.src = POWERUP_CONFIG.megaBall.image;
+
+
+
+const clusterImage = new Image();
+
+clusterImage.src = POWERUP_CONFIG.cluster.image;
+
+
+
 // Variáveis Globais
+
 let width, height, centerX, centerY;
+
 let containerRadius;
+
 let animationId;
 
+
+
 let gridState = []; 
+
 let gridCooldown = []; 
 
+
+
 // --- ESTADOS DO JOGO ---
+
 let currentState = STATE.MENU;
+
 let countdownValue = 3;
 
+
+
 // --- VARIÁVEIS DO JOGO ---
+
 let startTime; 
+
 let balls = []; // Array para armazenar todas as bolas
 
+
+
 // --- GERENCIAMENTO DE POWER-UPS ---
+
 let activePowerUps = []; // Lista de power-ups ativos na tela
-let nextStarSpawnTime = 0; // Timestamp para próxima estrela
-let nextBombSpawnTime = 0; // Timestamp para próxima bomba
+
+let nextStarSpawnTime = 0; 
+
+let nextBombSpawnTime = 0;
+
+let nextMegaBallSpawnTime = 0;
+
+let nextLaserSpawnTime = 0;
+
+let nextClusterSpawnTime = 0;
+
+
 
 let hasPlayedGameOverSound = false; // Flag para garantir que o som só toque uma vez no GAMEOVER
 
 
+
+// Efeito Mega Ball
+
+let megaBallActive = false;
+
+let megaBallEndTime = 0;
+
+
+
 // Tipos de PowerUp
+
 const POWERUP_TYPE = {
+
     STAR: 'star',
-    BOMB: 'bomb'
+
+    BOMB: 'bomb',
+
+    MEGABALL: 'megaball',
+
+    LASER: 'laser',
+
+    CLUSTER: 'cluster'
+
 };
 
+
+
 // Classe Ball
+
 class Ball {
-    constructor(color = PHYSICS_CONFIG.ballColor) {
-        this.radius = PHYSICS_CONFIG.ballRadius;
+
+    constructor(color = PHYSICS_CONFIG.ballColor, isTemporary = false, lifeTime = 0) {
+
+        this.baseRadius = PHYSICS_CONFIG.ballRadius;
+
+        this.radius = this.baseRadius;
+
         this.color = color;
+
         this.x = 0;
+
         this.y = 0;
+
         this.vx = 0;
+
         this.vy = 0;
-        this.init();
-    }
-    
-    init() {
-        const randomRadius = Math.random() * (containerRadius - this.radius - 20);
-        const randomAngle = Math.random() * Math.PI * 2;
-        this.x = centerX + Math.cos(randomAngle) * randomRadius;
-        this.y = centerY + Math.sin(randomAngle) * randomRadius;
+
         
-        const angle = Math.random() * Math.PI * 2;
-        this.vx = Math.cos(angle) * PHYSICS_CONFIG.ballSpeed;
-        this.vy = Math.sin(angle) * PHYSICS_CONFIG.ballSpeed;
+
+        // Propriedades para Cluster (bolas temporárias)
+
+        this.isTemporary = isTemporary;
+
+        this.lifeTime = lifeTime;
+
+        this.creationTime = Date.now();
+
+        this.markedForDeletion = false;
+
+
+
+        this.init();
+
     }
+
+    
+
+    init() {
+
+        // Se for temporária, spawna no powerup (será sobrescrito), senão aleatório
+
+        if (!this.isTemporary) {
+
+            const randomRadius = Math.random() * (containerRadius - this.radius - 20);
+
+            const randomAngle = Math.random() * Math.PI * 2;
+
+            this.x = centerX + Math.cos(randomAngle) * randomRadius;
+
+            this.y = centerY + Math.sin(randomAngle) * randomRadius;
+
+        } else {
+
+             // Posição será definida externamente ao spawnar do cluster
+
+             this.x = centerX;
+
+             this.y = centerY;
+
+        }
+
+        
+
+        const angle = Math.random() * Math.PI * 2;
+
+        const speed = this.isTemporary ? POWERUP_CONFIG.cluster.particleSpeed : PHYSICS_CONFIG.ballSpeed;
+
+        this.vx = Math.cos(angle) * speed;
+
+        this.vy = Math.sin(angle) * speed;
+
+    }
+
+
 
     update() {
+
         if (currentState !== STATE.PLAYING) return;
 
-        this.x += this.vx;
-        this.y += this.vy;
-        
-        const dx = this.x - centerX;
-        const dy = this.y - centerY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const maxDist = containerRadius - this.radius;
 
-        if (dist > maxDist) {
-            // Reproduz som com debounce leve ou clone se necessário, mas simples por enquanto
-            if (hitSound.paused) {
-                 hitSound.play().catch(e => {});
-            } else {
-                 hitSound.currentTime = 0;
+
+        // Verificar tempo de vida para bolas temporárias
+
+        if (this.isTemporary) {
+
+            if (Date.now() - this.creationTime > this.lifeTime) {
+
+                this.markedForDeletion = true;
+
+                return;
+
             }
 
-            const nx = dx / dist;
-            const ny = dy / dist;
-            this.x = centerX + nx * maxDist;
-            this.y = centerY + ny * maxDist;
-            const dotProduct = this.vx * nx + this.vy * ny;
-            const chaos = (Math.random() - 0.5) * 0.2; 
-            let rx = this.vx - 2 * dotProduct * nx;
-            let ry = this.vy - 2 * dotProduct * ny;
-            const cosC = Math.cos(chaos);
-            const sinC = Math.sin(chaos);
-            this.vx = rx * cosC - ry * sinC;
-            this.vy = rx * sinC + ry * cosC;
         }
+
+
+
+        // Lógica Mega Ball (Aumentar raio se ativo)
+
+        if (megaBallActive && !this.isTemporary) {
+
+            this.radius = this.baseRadius * POWERUP_CONFIG.megaBall.multiplier;
+
+        } else {
+
+            this.radius = this.baseRadius;
+
+        }
+
+
+
+        this.x += this.vx;
+
+        this.y += this.vy;
+
+        
+
+        const dx = this.x - centerX;
+
+        const dy = this.y - centerY;
+
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        const maxDist = containerRadius - this.radius;
+
+
+
+        if (dist > maxDist) {
+
+            // Reproduz som com debounce leve
+
+            if (hitSound.paused) {
+
+                 hitSound.play().catch(e => {});
+
+            } else {
+
+                 hitSound.currentTime = 0;
+
+            }
+
+
+
+            const nx = dx / dist;
+
+            const ny = dy / dist;
+
+            this.x = centerX + nx * maxDist;
+
+            this.y = centerY + ny * maxDist;
+
+            const dotProduct = this.vx * nx + this.vy * ny;
+
+            const chaos = (Math.random() - 0.5) * 0.2; 
+
+            let rx = this.vx - 2 * dotProduct * nx;
+
+            let ry = this.vy - 2 * dotProduct * ny;
+
+            const cosC = Math.cos(chaos);
+
+            const sinC = Math.sin(chaos);
+
+            this.vx = rx * cosC - ry * sinC;
+
+            this.vy = rx * sinC + ry * cosC;
+
+        }
+
     }
+
+
 
     draw(context) {
+
         if (currentState !== STATE.PLAYING) return;
 
+
+
         context.beginPath();
+
         context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+
         context.fillStyle = this.color;
+
         context.shadowBlur = 10;
+
         context.shadowColor = 'white';
+
         context.fill();
+
         context.shadowBlur = 0; 
+
         context.closePath();
+
     }
+
 }
 
 // Classe PowerUp Base
@@ -148,8 +347,16 @@ class PowerUp {
             this.color = POWERUP_CONFIG.star.color;
         } else if (type === POWERUP_TYPE.BOMB) {
             this.radius = POWERUP_CONFIG.bomb.radius;
-            // A cor não é necessária para a imagem, mas pode ser usada como fallback
             this.color = '#FF4500';
+        } else if (type === POWERUP_TYPE.MEGABALL) {
+            this.radius = POWERUP_CONFIG.megaBall.radius;
+            this.color = '#800080'; // Roxo fallback
+        } else if (type === POWERUP_TYPE.LASER) {
+            this.radius = POWERUP_CONFIG.laser.radius;
+            this.color = POWERUP_CONFIG.laser.color;
+        } else if (type === POWERUP_TYPE.CLUSTER) {
+            this.radius = POWERUP_CONFIG.cluster.radius;
+            this.color = '#00CED1'; // Turquesa fallback
         }
 
         this.spawn();
@@ -167,28 +374,60 @@ class PowerUp {
         
         if (this.type === POWERUP_TYPE.STAR) {
             drawStar(ctx, this.x, this.y, 5, this.radius, this.radius / 2, this.color);
-        } else if (this.type === POWERUP_TYPE.BOMB) {
-            // Desenhar a imagem da bomba
-            if (bombImage.complete && bombImage.naturalWidth > 0) {
-                const drawSize = this.radius * 2;
-                ctx.drawImage(bombImage, this.x - this.radius, this.y - this.radius, drawSize, drawSize);
-            } else {
-                // Fallback
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 12px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('!', this.x, this.y);
-                ctx.restore();
-            }
+        } 
+        else if (this.type === POWERUP_TYPE.BOMB) {
+            this.drawImageOrFallback(ctx, bombImage, this.color, '!');
+        }
+        else if (this.type === POWERUP_TYPE.MEGABALL) {
+            this.drawImageOrFallback(ctx, megaBallImage, this.color, 'M');
+        }
+        else if (this.type === POWERUP_TYPE.CLUSTER) {
+            this.drawImageOrFallback(ctx, clusterImage, this.color, 'C');
+        }
+        else if (this.type === POWERUP_TYPE.LASER) {
+            // Desenhar bolinha vermelha para o laser
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Ícone de raio simples
+            ctx.beginPath();
+            ctx.moveTo(this.x - 3, this.y - 5);
+            ctx.lineTo(this.x + 3, this.y);
+            ctx.lineTo(this.x - 3, this.y);
+            ctx.lineTo(this.x + 3, this.y + 5);
+            ctx.strokeStyle = '#FFFF00';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+    }
+
+    drawImageOrFallback(ctx, img, color, text) {
+        if (img.complete && img.naturalWidth > 0) {
+            const drawSize = this.radius * 2;
+            ctx.drawImage(img, this.x - this.radius, this.y - this.radius, drawSize, drawSize);
+        } else {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, this.x, this.y);
+            ctx.restore();
         }
     }
 }
@@ -471,6 +710,9 @@ function startCountdown() {
             // Definir timers iniciais para spawn
             nextStarSpawnTime = startTime + POWERUP_CONFIG.star.initialDelay;
             nextBombSpawnTime = startTime + POWERUP_CONFIG.bomb.initialDelay;
+            nextMegaBallSpawnTime = startTime + POWERUP_CONFIG.megaBall.initialDelay;
+            nextLaserSpawnTime = startTime + POWERUP_CONFIG.laser.initialDelay;
+            nextClusterSpawnTime = startTime + POWERUP_CONFIG.cluster.initialDelay;
         }
     }, 1000);
 }
@@ -546,6 +788,13 @@ function resize() {
     activePowerUps = [];  // Limpa power-ups
     nextStarSpawnTime = 0;
     nextBombSpawnTime = 0;
+    nextMegaBallSpawnTime = 0;
+    nextLaserSpawnTime = 0;
+    nextClusterSpawnTime = 0;
+    
+    megaBallActive = false;
+    megaBallEndTime = 0;
+    
     hasPlayedGameOverSound = false; // Resetar flag
 }
 
@@ -554,23 +803,115 @@ function getRandomInterval(min, max) {
     return Math.random() * (max - min) + min;
 }
 
+function fireLaser(x, y) {
+    // Escolher direção aleatória: Horizontal ou Vertical
+    const isHorizontal = Math.random() > 0.5;
+    const thickness = POWERUP_CONFIG.laser.thickness;
+    const halfThick = thickness / 2;
+
+    if (isHorizontal) {
+        // Revelar linha horizontal
+        const startRow = Math.floor((y - halfThick) / PHYSICS_CONFIG.gridSize);
+        const endRow = Math.ceil((y + halfThick) / PHYSICS_CONFIG.gridSize);
+        const cols = gridState.length;
+
+        for (let c = 0; c < cols; c++) {
+            for (let r = startRow; r < endRow; r++) {
+                if (gridState[c] && gridState[c][r] !== undefined) {
+                     revealCell(c, r);
+                }
+            }
+        }
+    } else {
+        // Revelar coluna vertical
+        const startCol = Math.floor((x - halfThick) / PHYSICS_CONFIG.gridSize);
+        const endCol = Math.ceil((x + halfThick) / PHYSICS_CONFIG.gridSize);
+        const rows = gridState[0].length; // Assumindo grade uniforme
+
+        for (let c = startCol; c < endCol; c++) {
+            if (!gridState[c]) continue;
+            for (let r = 0; r < rows; r++) {
+                 revealCell(c, r);
+            }
+        }
+    }
+}
+
+function revealCell(c, r) {
+    const currentStateVal = gridState[c][r];
+    const rectX = c * PHYSICS_CONFIG.gridSize;
+    const rectY = r * PHYSICS_CONFIG.gridSize;
+    const size = PHYSICS_CONFIG.gridSize;
+
+    // Forçar revelação total (remove preto e blur)
+    gridState[c][r] = 2;
+
+    maskBlackCtx.globalCompositeOperation = 'destination-out';
+    maskBlackCtx.fillRect(rectX, rectY, size, size);
+    maskBlackCtx.globalCompositeOperation = 'source-over';
+
+    if (PHYSICS_CONFIG.enableBlurLayer) {
+        maskBlurCtx.globalCompositeOperation = 'destination-out';
+        maskBlurCtx.fillRect(rectX, rectY, size, size);
+        maskBlurCtx.globalCompositeOperation = 'source-over';
+    }
+}
+
+function spawnCluster(x, y) {
+    const count = POWERUP_CONFIG.cluster.particleCount;
+    const life = POWERUP_CONFIG.cluster.particleLife;
+    const colors = POWERUP_CONFIG.star.extraBallColors; // Reusar cores
+
+    for (let i = 0; i < count; i++) {
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const b = new Ball(color, true, life);
+        b.x = x;
+        b.y = y;
+        balls.push(b);
+    }
+}
+
 function updatePowerUps() {
     const now = Date.now();
 
-    // 1. Spawner de Estrela
+    // --- SPAWNERS ---
+    
+    // 1. Estrela
     if (POWERUP_CONFIG.enableStar && now >= nextStarSpawnTime && nextStarSpawnTime > 0) {
         activePowerUps.push(new PowerUp(POWERUP_TYPE.STAR));
         nextStarSpawnTime = now + getRandomInterval(POWERUP_CONFIG.star.minInterval, POWERUP_CONFIG.star.maxInterval);
     }
 
-    // 2. Spawner de Bomba
+    // 2. Bomba
     if (POWERUP_CONFIG.enableBomb && now >= nextBombSpawnTime && nextBombSpawnTime > 0) {
         activePowerUps.push(new PowerUp(POWERUP_TYPE.BOMB));
         nextBombSpawnTime = now + getRandomInterval(POWERUP_CONFIG.bomb.minInterval, POWERUP_CONFIG.bomb.maxInterval);
     }
 
-    // 3. Checar Colisões
-    // Iteramos de trás para frente para remover seguramente
+    // 3. Mega Ball
+    if (POWERUP_CONFIG.enableMegaBall && now >= nextMegaBallSpawnTime && nextMegaBallSpawnTime > 0) {
+        activePowerUps.push(new PowerUp(POWERUP_TYPE.MEGABALL));
+        nextMegaBallSpawnTime = now + getRandomInterval(POWERUP_CONFIG.megaBall.minInterval, POWERUP_CONFIG.megaBall.maxInterval);
+    }
+
+    // 4. Laser
+    if (POWERUP_CONFIG.enableLaser && now >= nextLaserSpawnTime && nextLaserSpawnTime > 0) {
+        activePowerUps.push(new PowerUp(POWERUP_TYPE.LASER));
+        nextLaserSpawnTime = now + getRandomInterval(POWERUP_CONFIG.laser.minInterval, POWERUP_CONFIG.laser.maxInterval);
+    }
+
+    // 5. Cluster
+    if (POWERUP_CONFIG.enableCluster && now >= nextClusterSpawnTime && nextClusterSpawnTime > 0) {
+        activePowerUps.push(new PowerUp(POWERUP_TYPE.CLUSTER));
+        nextClusterSpawnTime = now + getRandomInterval(POWERUP_CONFIG.cluster.minInterval, POWERUP_CONFIG.cluster.maxInterval);
+    }
+
+    // --- MEGA BALL TIMER ---
+    if (megaBallActive && now > megaBallEndTime) {
+        megaBallActive = false;
+    }
+
+    // --- COLISÕES ---
     for (let i = activePowerUps.length - 1; i >= 0; i--) {
         const p = activePowerUps[i];
         if (!p.active) continue;
@@ -597,12 +938,30 @@ function updatePowerUps() {
                     const color = colors[Math.floor(Math.random() * colors.length)];
                     balls.push(new Ball(color));
                 }
-            } else if (p.type === POWERUP_TYPE.BOMB) {
+            } 
+            else if (p.type === POWERUP_TYPE.BOMB) {
                 explodeBomb(p.x, p.y);
+            }
+            else if (p.type === POWERUP_TYPE.MEGABALL) {
+                megaBallActive = true;
+                megaBallEndTime = now + POWERUP_CONFIG.megaBall.duration;
+            }
+            else if (p.type === POWERUP_TYPE.LASER) {
+                fireLaser(p.x, p.y);
+            }
+            else if (p.type === POWERUP_TYPE.CLUSTER) {
+                spawnCluster(p.x, p.y);
             }
 
             // Remover do array
             activePowerUps.splice(i, 1);
+        }
+    }
+
+    // Remover bolas temporárias marcadas para deleção
+    for (let i = balls.length - 1; i >= 0; i--) {
+        if (balls[i].markedForDeletion) {
+            balls.splice(i, 1);
         }
     }
 }

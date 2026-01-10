@@ -28,7 +28,14 @@ const PHYSICS_CONFIG = {
 const POWERUP_CONFIG = {
     // Flags para ativar/desativar cada tipo
     enableStar: true,
-    enableBomb: true,
+    enableBomb: false,
+    enableMegaBall: false,
+    enableLaser: false,
+    enableCluster: true,
+
+    // Configurações Gerais de Spawn
+    initialSpawnDelay: 4000,
+    subsequentSpawnDelay: 12000,
 
     // Configuração da Estrela (Independente)
     star: {
@@ -45,14 +52,53 @@ const POWERUP_CONFIG = {
 
     // Configuração da Bomba (Independente)
     bomb: {
-        radius: 12, 
+        radius: 15, 
         image: 'assets/bomb.png',
-        explosionRadius: 30,
+        explosionRadius: 60,
 
         // Tempos
-        initialDelay: 5000, // Começa um pouco depois da estrela
-        minInterval: 10000, // Mínimo 12s
-        maxInterval: 20000  // Máximo 25s
+        initialDelay: 5000, 
+        minInterval: 12000, 
+        maxInterval: 25000  
+    },
+
+    // Configuração do Mega Ball (Independente)
+    megaBall: {
+        radius: 15,
+        image: 'assets/megaball.png', // Placeholder
+        duration: 5000, // 8 segundos de efeito
+        multiplier: 5, // 4x o tamanho
+
+        // Tempos
+        initialDelay: 3000,
+        minInterval: 12000,
+        maxInterval: 24000
+    },
+
+    // Configuração do Laser (Independente)
+    laser: {
+        radius: 5,
+        color: '#FF0000', // Bolinha vermelha
+        thickness: 20, // Espessura da linha do laser
+
+        // Tempos
+        initialDelay: 6000,
+        minInterval: 12000,
+        maxInterval: 28000
+    },
+
+    // Configuração do Cluster (Independente)
+    cluster: {
+        radius: 15,
+        image: 'assets/cluster.png',
+        particleCount: 8,
+        particleLife: 1500,
+        particleSpeed: 2,
+
+        // Tempos
+        initialDelay: 12000,
+        minInterval: 16000,
+        maxInterval: 40000
     }
 };
 
