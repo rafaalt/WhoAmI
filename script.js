@@ -31,6 +31,8 @@ const hitSound = new Audio(GAME_CONFIG.sound.hit);
 
 const answerCorrectSound = new Audio(GAME_CONFIG.sound.answerCorrect); // Novo som
 
+const takenSound = new Audio(GAME_CONFIG.sound.taken);
+
 
 
 // Imagens para PowerUps
@@ -132,205 +134,115 @@ const POWERUP_TYPE = {
 
 
 // Classe Ball
-
 class Ball {
-
     constructor(color = PHYSICS_CONFIG.ballColor, isTemporary = false, lifeTime = 0) {
-
         this.baseRadius = PHYSICS_CONFIG.ballRadius;
-
         this.radius = this.baseRadius;
+        
+        // Propriedade visual separada (pode ser maior que o raio de revelação)
+        this.baseVisualRadius = PHYSICS_CONFIG.ballVisualRadius;
+        this.visualRadius = this.baseVisualRadius;
 
         this.color = color;
-
         this.x = 0;
-
         this.y = 0;
-
         this.vx = 0;
-
         this.vy = 0;
-
         
-
         // Propriedades para Cluster (bolas temporárias)
-
         this.isTemporary = isTemporary;
-
         this.lifeTime = lifeTime;
-
         this.creationTime = Date.now();
-
         this.markedForDeletion = false;
 
-
-
         this.init();
-
     }
-
     
-
     init() {
-
         // Se for temporária, spawna no powerup (será sobrescrito), senão aleatório
-
         if (!this.isTemporary) {
-
-            const randomRadius = Math.random() * (containerRadius - this.radius - 20);
-
+            const randomRadius = Math.random() * (containerRadius - this.visualRadius - 20);
             const randomAngle = Math.random() * Math.PI * 2;
-
             this.x = centerX + Math.cos(randomAngle) * randomRadius;
-
             this.y = centerY + Math.sin(randomAngle) * randomRadius;
-
         } else {
-
              // Posição será definida externamente ao spawnar do cluster
-
              this.x = centerX;
-
              this.y = centerY;
-
         }
-
         
-
         const angle = Math.random() * Math.PI * 2;
-
         const speed = this.isTemporary ? POWERUP_CONFIG.cluster.particleSpeed : PHYSICS_CONFIG.ballSpeed;
-
         this.vx = Math.cos(angle) * speed;
-
         this.vy = Math.sin(angle) * speed;
-
     }
-
-
 
     update() {
-
         if (currentState !== STATE.PLAYING) return;
-
-
 
         // Verificar tempo de vida para bolas temporárias
-
         if (this.isTemporary) {
-
             if (Date.now() - this.creationTime > this.lifeTime) {
-
                 this.markedForDeletion = true;
-
                 return;
-
             }
-
         }
-
-
 
         // Lógica Mega Ball (Aumentar raio se ativo)
-
         if (megaBallActive && !this.isTemporary) {
-
-            this.radius = this.baseRadius * POWERUP_CONFIG.megaBall.multiplier;
-
+            this.radius = this.baseRadius * POWERUP_CONFIG.megaBall.revealMultiplier;
+            this.visualRadius = this.baseVisualRadius * POWERUP_CONFIG.megaBall.visualMultiplier;
         } else {
-
             this.radius = this.baseRadius;
-
+            this.visualRadius = this.baseVisualRadius;
         }
-
-
 
         this.x += this.vx;
-
         this.y += this.vy;
-
         
-
         const dx = this.x - centerX;
-
         const dy = this.y - centerY;
-
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        const maxDist = containerRadius - this.radius;
-
-
+        // Colisão com parede usa o raio visual para parecer sólido
+        const maxDist = containerRadius - this.visualRadius;
 
         if (dist > maxDist) {
-
             // Reproduz som com debounce leve
-
             if (hitSound.paused) {
-
                  hitSound.play().catch(e => {});
-
             } else {
-
                  hitSound.currentTime = 0;
-
             }
 
-
-
             const nx = dx / dist;
-
             const ny = dy / dist;
-
             this.x = centerX + nx * maxDist;
-
             this.y = centerY + ny * maxDist;
-
             const dotProduct = this.vx * nx + this.vy * ny;
-
             const chaos = (Math.random() - 0.5) * 0.2; 
-
             let rx = this.vx - 2 * dotProduct * nx;
-
             let ry = this.vy - 2 * dotProduct * ny;
-
             const cosC = Math.cos(chaos);
-
             const sinC = Math.sin(chaos);
-
             this.vx = rx * cosC - ry * sinC;
-
             this.vy = rx * sinC + ry * cosC;
-
         }
-
     }
-
-
 
     draw(context) {
-
         if (currentState !== STATE.PLAYING) return;
 
-
-
         context.beginPath();
-
-        context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-
+        // Desenha usando o raio visual
+        context.arc(this.x, this.y, this.visualRadius, 0, Math.PI * 2);
         context.fillStyle = this.color;
-
         context.shadowBlur = 10;
-
         context.shadowColor = 'white';
-
         context.fill();
-
         context.shadowBlur = 0; 
-
         context.closePath();
-
     }
-
 }
 
 // Classe PowerUp Base
@@ -655,16 +567,24 @@ function drawBottomText() {
     ctx.textAlign = 'center';
     
     if (currentState !== STATE.GAMEOVER) {
-        const fontSize = 20;
+        // --- Título: "Acerte o famoso" ---
+        ctx.font = "bold 24px 'Orbitron', sans-serif"; 
+        ctx.fillStyle = "#fff";
+        ctx.fillText(GAME_CONFIG.texts.title, centerX, startY);
+
+        // --- Subtítulo: "Em quanto tempo..." ---
+        const fontSize = 18;
         const lineHeight = fontSize * 1.4;
         ctx.font = `${fontSize}px 'Orbitron', sans-serif`; 
         ctx.fillStyle = "#aaa";
 
-        const text = "Em quanto tempo você consegue adivinhar esse famoso?";
-        const lines = getLines(ctx, text, maxWidth);
+        const lines = getLines(ctx, GAME_CONFIG.texts.subtitle, maxWidth);
+
+        // Ajustar Y para o subtítulo ficar abaixo do título
+        const subtitleStartY = startY + 30; 
 
         lines.forEach((line, i) => {
-            ctx.fillText(line, centerX, startY + (i * lineHeight));
+            ctx.fillText(line, centerX, subtitleStartY + (i * lineHeight));
         });
     } 
     else {
@@ -683,10 +603,13 @@ function drawBottomText() {
 
         const lastLineY = startY + (lines.length * lineHeight);
         
-        ctx.font = "24px sans-serif";
+        ctx.font = "bold 24px sans-serif";
         ctx.fillStyle = "#4caf50"; 
         ctx.shadowBlur = 0;
-        ctx.fillText("Você acertou?", centerX, lastLineY + 10);
+        ctx.fillText(GAME_CONFIG.texts.victory, centerX, lastLineY + 15);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(GAME_CONFIG.texts.follow, centerX, lastLineY + 45);
     }
     
     ctx.restore();
@@ -842,18 +765,26 @@ function revealCell(c, r) {
     const rectX = c * PHYSICS_CONFIG.gridSize;
     const rectY = r * PHYSICS_CONFIG.gridSize;
     const size = PHYSICS_CONFIG.gridSize;
+    const now = Date.now();
 
-    // Forçar revelação total (remove preto e blur)
-    gridState[c][r] = 2;
+    if (currentStateVal === 0) {
+        // Preto -> Blur
+        gridState[c][r] = 1;
+        gridCooldown[c][r] = now; 
 
-    maskBlackCtx.globalCompositeOperation = 'destination-out';
-    maskBlackCtx.fillRect(rectX, rectY, size, size);
-    maskBlackCtx.globalCompositeOperation = 'source-over';
-
-    if (PHYSICS_CONFIG.enableBlurLayer) {
-        maskBlurCtx.globalCompositeOperation = 'destination-out';
-        maskBlurCtx.fillRect(rectX, rectY, size, size);
-        maskBlurCtx.globalCompositeOperation = 'source-over';
+        maskBlackCtx.globalCompositeOperation = 'destination-out';
+        maskBlackCtx.fillRect(rectX, rectY, size, size);
+        maskBlackCtx.globalCompositeOperation = 'source-over';
+    } 
+    else if (currentStateVal === 1) {
+        // Blur -> Original
+        gridState[c][r] = 2;
+        
+        if (PHYSICS_CONFIG.enableBlurLayer) {
+            maskBlurCtx.globalCompositeOperation = 'destination-out';
+            maskBlurCtx.fillRect(rectX, rectY, size, size);
+            maskBlurCtx.globalCompositeOperation = 'source-over';
+        }
     }
 }
 
@@ -930,6 +861,10 @@ function updatePowerUps() {
         }
 
         if (collected) {
+            // Tocar som de powerup pego
+            takenSound.currentTime = 0;
+            takenSound.play().catch(e => console.log("Audio play failed:", e));
+
             // Aplicar efeito
             if (p.type === POWERUP_TYPE.STAR) {
                 const count = POWERUP_CONFIG.star.extraBallsCount;

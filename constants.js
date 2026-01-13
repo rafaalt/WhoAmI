@@ -1,13 +1,20 @@
 // --- CONFIGURAÇÕES DO JOGO (FÁCIL ALTERAÇÃO) ---
 const GAME_CONFIG = {
-    playerName: "CRISTIANO RONALDO",
+    playerName: "OS INCRÍVEIS",
     images: {
-        background: 'person/cr7.jpg',
+        background: 'person/incriveis.png',
         logo: 'assets/logo.png'
     },
     sound: {
-        hit: 'assets/sound-ball.wav',
-        answerCorrect: 'assets/answer-correct.mp3'
+        hit: 'assets/sounds/sound-ball.wav',
+        answerCorrect: 'assets/sounds/answer-correct.mp3',
+        taken: 'assets/sounds/taken.mp3'
+    },
+    texts: {
+        title: "Acerte o filme!",
+        subtitle: "Em quanto tempo você consegue adivinhar esse filme?",
+        victory: "Você acertou?",
+        follow: ""
     },
     duration: 60000
 };
@@ -15,9 +22,10 @@ const GAME_CONFIG = {
 // --- CONFIGURAÇÃO VISUAL E FÍSICA ---
 const PHYSICS_CONFIG = {
     enableBlurLayer: true, 
-    gridSize: 4,      
+    gridSize: 6,      
     gridGap: 0,
-    ballRadius: 2,
+    ballRadius: 3,
+    ballVisualRadius: 8,
     ballSpeed: 2,     
     ballColor: '#ffffff',
     layerCooldown: 400,
@@ -28,10 +36,10 @@ const PHYSICS_CONFIG = {
 const POWERUP_CONFIG = {
     // Flags para ativar/desativar cada tipo
     enableStar: true,
-    enableBomb: false,
+    enableBomb: true,
     enableMegaBall: false,
     enableLaser: false,
-    enableCluster: true,
+    enableCluster: false,
 
     // Configurações Gerais de Spawn
     initialSpawnDelay: 4000,
@@ -46,8 +54,8 @@ const POWERUP_CONFIG = {
         
         // Tempos
         initialDelay: 3000,
-        minInterval: 8000,  // Mínimo 8s
-        maxInterval: 15000  // Máximo 15s
+        minInterval: 10000,
+        maxInterval: 20000
     },
 
     // Configuração da Bomba (Independente)
@@ -67,7 +75,8 @@ const POWERUP_CONFIG = {
         radius: 15,
         image: 'assets/megaball.png', // Placeholder
         duration: 5000, // 8 segundos de efeito
-        multiplier: 5, // 4x o tamanho
+        visualMultiplier: 2, 
+        revealMultiplier: 4,
 
         // Tempos
         initialDelay: 3000,
@@ -77,12 +86,12 @@ const POWERUP_CONFIG = {
 
     // Configuração do Laser (Independente)
     laser: {
-        radius: 5,
+        radius: 10,
         color: '#FF0000', // Bolinha vermelha
         thickness: 20, // Espessura da linha do laser
 
         // Tempos
-        initialDelay: 6000,
+        initialDelay: 7000,
         minInterval: 12000,
         maxInterval: 28000
     },
@@ -91,8 +100,8 @@ const POWERUP_CONFIG = {
     cluster: {
         radius: 15,
         image: 'assets/cluster.png',
-        particleCount: 8,
-        particleLife: 1500,
+        particleCount: 6,
+        particleLife: 1800,
         particleSpeed: 2,
 
         // Tempos
