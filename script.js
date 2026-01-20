@@ -862,8 +862,10 @@ function updatePowerUps() {
 
         if (collected) {
             // Tocar som de powerup pego
-            takenSound.currentTime = 0;
-            takenSound.play().catch(e => console.log("Audio play failed:", e));
+            const soundClone = takenSound.cloneNode();
+            soundClone.volume = 0.8; // Ajusta o volume para 80%
+            soundClone.currentTime = 0.3; // Inicia o som em 0.3 segundos
+            soundClone.play().catch(e => console.log("Audio play failed:", e));
 
             // Aplicar efeito
             if (p.type === POWERUP_TYPE.STAR) {
