@@ -1,8 +1,8 @@
 // --- CONFIGURAÇÕES DO JOGO (FÁCIL ALTERAÇÃO) ---
 const GAME_CONFIG = {
-    playerName: "ANA PAULA",
+    playerName: "THE BOYS",
     images: {
-        background: 'person/ana.png',
+        background: 'person/boys.png',
         logo: 'assets/logo.png'
     },
     sound: {
@@ -11,8 +11,8 @@ const GAME_CONFIG = {
         taken: 'assets/sounds/taken.mp3'
     },
     texts: {
-        title: "Acerte o famoso!",
-        subtitle: "Em quanto tempo você consegue adivinhar esse famoso?",
+        title: "Acerte a série!",
+        subtitle: "Em quanto tempo você consegue adivinhar essa série?",
         victory: "Você acertou?",
         follow: ""
     },
@@ -26,7 +26,7 @@ const PHYSICS_CONFIG = {
     gridGap: 0,
     ballRadius: 2,
     ballVisualRadius: 8,
-    ballSpeed: 1.3,     
+    ballSpeed: 1.4,     
     ballColor: '#ffffff',
     layerCooldown: 400,
     blurAmount: '15px'
@@ -37,8 +37,8 @@ const POWERUP_CONFIG = {
     // Flags para ativar/desativar cada tipo
     enableStar: true,
     enableBomb: true,
-    enableMegaBall: true,
-    enableLaser: false,
+    enableMegaBall: false,
+    enableLaser: true,
     enableCluster: false,
 
     // Configurações Gerais de Spawn
@@ -91,8 +91,8 @@ const POWERUP_CONFIG = {
         thickness: 20, // Espessura da linha do laser
 
         // Tempos
-        initialDelay: 9000, 
-        minInterval: 14000, 
+        initialDelay: 9500, 
+        minInterval: 16000, 
         maxInterval: 40000  
     },
 

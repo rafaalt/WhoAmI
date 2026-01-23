@@ -1,0 +1,139 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    font-family: 'Orbitron', sans-serif; /* Maintaining the font from quiz */
+}
+
+/* 9:16 Container */
+#battle-frame {
+    height: 95vh; 
+    aspect-ratio: 9 / 16;
+    border: 2px dashed #ff0055; /* Different color for Battle */
+    background-color: #111;
+    position: relative;
+    box-shadow: 0 0 50px rgba(255, 0, 85, 0.2);
+    display: flex;
+    flex-direction: column;
+}
+
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px;
+    z-index: 10;
+}
+
+.header {
+    text-align: center;
+}
+
+.logo {
+    max-width: 200px;
+    margin-bottom: 10px;
+}
+
+h1 {
+    color: #ff0055;
+    text-transform: uppercase;
+    font-size: 2rem;
+    text-shadow: 0 0 10px rgba(255, 0, 85, 0.5);
+}
+
+.hud {
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.player-stat {
+    color: white;
+    text-align: center;
+}
+
+.player-name {
+    font-size: 0.8rem;
+    color: #aaa;
+}
+
+.player-lives {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.player-lives.dead {
+    color: #555;
+    text-decoration: line-through;
+}
+
+#canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#game-over {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    padding: 40px;
+    border: 2px solid #ff0055;
+    border-radius: 20px;
+    text-align: center;
+    display: none; /* Hidden by default */
+    z-index: 20;
+    pointer-events: auto;
+}
+
+#game-over h2 {
+    color: #fff;
+    margin-bottom: 20px;
+}
+
+#winner-name {
+    color: #ff0055;
+    font-size: 2rem;
+    margin-bottom: 30px;
+    display: block;
+}
+
+button {
+    background: #ff0055;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 1.2rem;
+    font-family: 'Orbitron', sans-serif;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: transform 0.2s, background 0.2s;
+}
+
+button:hover {
+    background: #ff3377;
+    transform: scale(1.05);
+}
