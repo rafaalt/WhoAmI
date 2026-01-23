@@ -7,14 +7,10 @@ const frame = document.getElementById('tiktok-frame'); // Referência ao contain
 const tempLayerCanvas = document.createElement('canvas');
 const tempLayerCtx = tempLayerCanvas.getContext('2d');
 
-const maskBlackCanvas = document.createElement('canvas');
-const maskBlackCtx = maskBlackCanvas.getContext('2d');
+// Gerenciamento de Camadas (Black + Blurs)
+let layers = []; 
+// Estrutura de cada layer: { type: 'black'|'blur', maskCanvas, maskCtx, imageCanvas?, imageCtx?, blurAmount? }
 
-const maskBlurCanvas = document.createElement('canvas');
-const maskBlurCtx = maskBlurCanvas.getContext('2d');
-
-const blurredImageCanvas = document.createElement('canvas');
-const blurredCtx = blurredImageCanvas.getContext('2d');
 
 // Carregar imagem
 const bgImage = new Image();
@@ -413,21 +409,28 @@ function updateGridState() {
         const rectY = row * PHYSICS_CONFIG.gridSize;
         const size = PHYSICS_CONFIG.gridSize - PHYSICS_CONFIG.gridGap;
 
-        if (currentStateVal === 0) {
-            gridState[col][row] = 1;
-            gridCooldown[col][row] = now;
-            
-            maskBlackCtx.globalCompositeOperation = 'destination-out';
-            maskBlackCtx.fillRect(rectX, rectY, size, size);
-            maskBlackCtx.globalCompositeOperation = 'source-over';
-        }
-        else if (currentStateVal === 1 && PHYSICS_CONFIG.enableBlurLayer) {
-            if (now - gridCooldown[col][row] > PHYSICS_CONFIG.layerCooldown) {
-                gridState[col][row] = 2;
+        if (currentStateVal < layers.length) {
+            if (currentStateVal === 0) {
+                // 0 -> 1 (Black -> First Blur/Base) - Instant
+                gridState[col][row] = 1;
+                gridCooldown[col][row] = now;
                 
-                maskBlurCtx.globalCompositeOperation = 'destination-out';
-                maskBlurCtx.fillRect(rectX, rectY, size, size);
-                maskBlurCtx.globalCompositeOperation = 'source-over';
+                const ctx = layers[0].maskCtx;
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.fillRect(rectX, rectY, size, size);
+                ctx.globalCompositeOperation = 'source-over';
+            }
+            else {
+                // K -> K+1 (Blur -> Next Blur/Base) - With Cooldown
+                if (now - gridCooldown[col][row] > PHYSICS_CONFIG.layerCooldown) {
+                    gridState[col][row] = currentStateVal + 1;
+                    gridCooldown[col][row] = now;
+                    
+                    const ctx = layers[currentStateVal].maskCtx;
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.fillRect(rectX, rectY, size, size);
+                    ctx.globalCompositeOperation = 'source-over';
+                }
             }
         }
     });
@@ -455,24 +458,24 @@ function explodeBomb(x, y) {
                 if (dist < radius) {
                     const currentStateVal = gridState[c][r];
                     
-                    if (currentStateVal === 0) {
-                        // Preto -> Blur
-                        gridState[c][r] = 1;
-                        // Atualiza cooldown para evitar que a bolinha revele instantaneamente o próximo layer
-                        gridCooldown[c][r] = now; 
-
-                        maskBlackCtx.globalCompositeOperation = 'destination-out';
-                        maskBlackCtx.fillRect(rectX, rectY, size, size);
-                        maskBlackCtx.globalCompositeOperation = 'source-over';
-                    } 
-                    else if (currentStateVal === 1) {
-                        // Blur -> Original
-                        gridState[c][r] = 2;
-                        
-                        if (PHYSICS_CONFIG.enableBlurLayer) {
-                            maskBlurCtx.globalCompositeOperation = 'destination-out';
-                            maskBlurCtx.fillRect(rectX, rectY, size, size);
-                            maskBlurCtx.globalCompositeOperation = 'source-over';
+                    if (currentStateVal < layers.length) {
+                        if (currentStateVal === 0) {
+                            gridState[c][r] = 1;
+                            gridCooldown[c][r] = now; 
+                            
+                            const ctx = layers[0].maskCtx;
+                            ctx.globalCompositeOperation = 'destination-out';
+                            ctx.fillRect(rectX, rectY, size, size);
+                            ctx.globalCompositeOperation = 'source-over';
+                        } 
+                        else {
+                            gridState[c][r] = currentStateVal + 1;
+                            gridCooldown[c][r] = now;
+                            
+                            const ctx = layers[currentStateVal].maskCtx;
+                            ctx.globalCompositeOperation = 'destination-out';
+                            ctx.fillRect(rectX, rectY, size, size);
+                            ctx.globalCompositeOperation = 'source-over';
                         }
                     }
                 }
@@ -483,11 +486,17 @@ function explodeBomb(x, y) {
 
 function preRenderBlur() {
     if (!bgImage.complete || bgImage.naturalWidth === 0) return;
-    blurredImageCanvas.width = bgImage.width;
-    blurredImageCanvas.height = bgImage.height;
-    blurredCtx.filter = `blur(${PHYSICS_CONFIG.blurAmount})`;
-    blurredCtx.drawImage(bgImage, -20, -20, bgImage.width + 40, bgImage.height + 40);
-    blurredCtx.filter = 'none';
+    
+    layers.forEach(layer => {
+        if (layer.type === 'blur' && layer.imageCanvas && layer.imageCtx) {
+            layer.imageCanvas.width = bgImage.width;
+            layer.imageCanvas.height = bgImage.height;
+            
+            layer.imageCtx.filter = `blur(${layer.blurAmount})`;
+            layer.imageCtx.drawImage(bgImage, -20, -20, bgImage.width + 40, bgImage.height + 40);
+            layer.imageCtx.filter = 'none';
+        }
+    });
 }
 
 function drawScoreboard(elapsedTime) {
@@ -686,16 +695,47 @@ function resize() {
     canvas.height = height;
     
     tempLayerCanvas.width = width; tempLayerCanvas.height = height;
-    maskBlackCanvas.width = width; maskBlackCanvas.height = height;
-    maskBlurCanvas.width = width; maskBlurCanvas.height = height;
 
     centerX = width / 2;
     centerY = height / 2;
     containerRadius = Math.min(width, height) * 0.35; 
+    
+    // --- REBUILD LAYERS ---
+    layers = [];
+    
+    // 1. Black Layer (Top Most)
+    const blackC = document.createElement('canvas');
+    blackC.width = width; blackC.height = height;
+    layers.push({
+        type: 'black',
+        maskCanvas: blackC,
+        maskCtx: blackC.getContext('2d')
+    });
+    
+    // 2. Blur Layers (From Config)
+    if (PHYSICS_CONFIG.blurLevels) {
+        PHYSICS_CONFIG.blurLevels.forEach(amount => {
+            const maskC = document.createElement('canvas');
+            maskC.width = width; maskC.height = height;
+            
+            const imgC = document.createElement('canvas');
+            
+            layers.push({
+                type: 'blur',
+                blurAmount: amount,
+                maskCanvas: maskC,
+                maskCtx: maskC.getContext('2d'),
+                imageCanvas: imgC,
+                imageCtx: imgC.getContext('2d')
+            });
+        });
+    }
 
     initGrid();
 
-    [maskBlackCtx, maskBlurCtx].forEach(ctx => {
+    // Reset masks
+    layers.forEach(layer => {
+        const ctx = layer.maskCtx;
         ctx.clearRect(0, 0, width, height);
         ctx.fillStyle = '#000';
         ctx.save();
@@ -705,6 +745,9 @@ function resize() {
         ctx.fillRect(0, 0, width, height);
         ctx.restore();
     });
+    
+    // Re-render blurs
+    preRenderBlur();
     
     currentState = STATE.MENU;
     balls = [new Ball()]; // Reinicia com uma bola
@@ -767,23 +810,24 @@ function revealCell(c, r) {
     const size = PHYSICS_CONFIG.gridSize;
     const now = Date.now();
 
-    if (currentStateVal === 0) {
-        // Preto -> Blur
-        gridState[c][r] = 1;
-        gridCooldown[c][r] = now; 
-
-        maskBlackCtx.globalCompositeOperation = 'destination-out';
-        maskBlackCtx.fillRect(rectX, rectY, size, size);
-        maskBlackCtx.globalCompositeOperation = 'source-over';
-    } 
-    else if (currentStateVal === 1) {
-        // Blur -> Original
-        gridState[c][r] = 2;
-        
-        if (PHYSICS_CONFIG.enableBlurLayer) {
-            maskBlurCtx.globalCompositeOperation = 'destination-out';
-            maskBlurCtx.fillRect(rectX, rectY, size, size);
-            maskBlurCtx.globalCompositeOperation = 'source-over';
+    if (currentStateVal < layers.length) {
+        if (currentStateVal === 0) {
+            gridState[c][r] = 1;
+            gridCooldown[c][r] = now; 
+            
+            const ctx = layers[0].maskCtx;
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillRect(rectX, rectY, size, size);
+            ctx.globalCompositeOperation = 'source-over';
+        } 
+        else {
+            gridState[c][r] = currentStateVal + 1;
+            gridCooldown[c][r] = now;
+            
+            const ctx = layers[currentStateVal].maskCtx;
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillRect(rectX, rectY, size, size);
+            ctx.globalCompositeOperation = 'source-over';
         }
     }
 }
@@ -940,26 +984,26 @@ function render() {
         ctx.drawImage(bgImage, drawX, drawY, diameter, diameter);
 
         if (currentState !== STATE.GAMEOVER) {
-            if (PHYSICS_CONFIG.enableBlurLayer) {
+            // Render layers from Bottom (Deepest Blur) to Top (Black)
+            for (let i = layers.length - 1; i >= 0; i--) {
+                const layer = layers[i];
                 tempLayerCtx.clearRect(0, 0, width, height);
-                tempLayerCtx.drawImage(blurredImageCanvas, 0, 0, blurredImageCanvas.width, blurredImageCanvas.height, drawX, drawY, diameter, diameter);
+                
+                if (layer.type === 'blur') {
+                    if (layer.imageCanvas) {
+                        tempLayerCtx.drawImage(layer.imageCanvas, 0, 0, layer.imageCanvas.width, layer.imageCanvas.height, drawX, drawY, diameter, diameter);
+                    }
+                } else {
+                    tempLayerCtx.fillStyle = '#000';
+                    tempLayerCtx.fillRect(0, 0, width, height);
+                }
                 
                 tempLayerCtx.globalCompositeOperation = 'destination-in';
-                tempLayerCtx.drawImage(maskBlurCanvas, 0, 0);
+                tempLayerCtx.drawImage(layer.maskCanvas, 0, 0);
                 tempLayerCtx.globalCompositeOperation = 'source-over';
 
                 ctx.drawImage(tempLayerCanvas, 0, 0);
             }
-
-            tempLayerCtx.clearRect(0, 0, width, height);
-            tempLayerCtx.fillStyle = '#000';
-            tempLayerCtx.fillRect(0, 0, width, height);
-
-            tempLayerCtx.globalCompositeOperation = 'destination-in';
-            tempLayerCtx.drawImage(maskBlackCanvas, 0, 0);
-            tempLayerCtx.globalCompositeOperation = 'source-over';
-
-            ctx.drawImage(tempLayerCanvas, 0, 0);
         }
     }
 

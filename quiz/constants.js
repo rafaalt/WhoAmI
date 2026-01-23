@@ -1,8 +1,8 @@
 // --- CONFIGURAÇÕES DO JOGO (FÁCIL ALTERAÇÃO) ---
 const GAME_CONFIG = {
-    playerName: "THE BOYS",
+    playerName: "ORLANDO CITY",
     images: {
-        background: 'person/boys.png',
+        background: 'person/orlando.png',
         logo: 'assets/logo.png'
     },
     sound: {
@@ -11,8 +11,8 @@ const GAME_CONFIG = {
         taken: 'assets/sounds/taken.mp3'
     },
     texts: {
-        title: "Acerte a série!",
-        subtitle: "Em quanto tempo você consegue adivinhar essa série?",
+        title: "Acerte o time!",
+        subtitle: "Em quanto tempo você consegue adivinhar esse time?",
         victory: "Você acertou?",
         follow: ""
     },
@@ -21,7 +21,7 @@ const GAME_CONFIG = {
 
 // --- CONFIGURAÇÃO VISUAL E FÍSICA ---
 const PHYSICS_CONFIG = {
-    enableBlurLayer: true, 
+    blurLevels: ['100px', '70px', '60px','45px', '30px', '10px'], 
     gridSize: 6,      
     gridGap: 0,
     ballRadius: 2,
@@ -29,7 +29,6 @@ const PHYSICS_CONFIG = {
     ballSpeed: 1.4,     
     ballColor: '#ffffff',
     layerCooldown: 400,
-    blurAmount: '15px'
 };
 
 // --- CONFIGURAÇÃO DOS POWER-UPS ---
@@ -39,7 +38,7 @@ const POWERUP_CONFIG = {
     enableBomb: true,
     enableMegaBall: false,
     enableLaser: true,
-    enableCluster: false,
+    enableCluster: true,
 
     // Configurações Gerais de Spawn
     initialSpawnDelay: 4000,
@@ -55,7 +54,7 @@ const POWERUP_CONFIG = {
         // Tempos
         initialDelay: 5000,
         minInterval: 10000,
-        maxInterval: 35000
+        maxInterval: 15000
     },
 
     // Configuração da Bomba (Independente)
@@ -65,9 +64,9 @@ const POWERUP_CONFIG = {
         explosionRadius: 30,
 
         // Tempos
-        initialDelay: 9000, 
-        minInterval: 14000, 
-        maxInterval: 40000  
+        initialDelay: 5000, 
+        minInterval: 10000, 
+        maxInterval: 18000  
     },
 
     // Configuração do Mega Ball (Independente)
@@ -91,9 +90,9 @@ const POWERUP_CONFIG = {
         thickness: 20, // Espessura da linha do laser
 
         // Tempos
-        initialDelay: 9500, 
-        minInterval: 16000, 
-        maxInterval: 40000  
+        initialDelay: 6000, 
+        minInterval: 10000, 
+        maxInterval: 18000  
     },
 
     // Configuração do Cluster (Independente)
@@ -105,9 +104,9 @@ const POWERUP_CONFIG = {
         particleSpeed: 2,
 
         // Tempos
-        initialDelay: 20000,
-        minInterval: 30000,
-        maxInterval: 40000
+        initialDelay: 7500,
+        minInterval: 10000,
+        maxInterval: 25000
     }
 };
 
