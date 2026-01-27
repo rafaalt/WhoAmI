@@ -1,8 +1,8 @@
 // --- CONFIGURAÇÕES DO JOGO (FÁCIL ALTERAÇÃO) ---
 const GAME_CONFIG = {
-    playerName: "ORLANDO CITY",
+    playerName: "LIVERPOOL",
     images: {
-        background: 'person/orlando.png',
+        background: 'person/liverpool.png',
         logo: 'assets/logo.png'
     },
     sound: {
@@ -21,7 +21,7 @@ const GAME_CONFIG = {
 
 // --- CONFIGURAÇÃO VISUAL E FÍSICA ---
 const PHYSICS_CONFIG = {
-    blurLevels: ['100px', '70px', '60px','45px', '30px', '10px'], 
+    blurLevels: ['100px', '80px', '50px', '20px', '1px'], 
     gridSize: 6,      
     gridGap: 0,
     ballRadius: 2,
